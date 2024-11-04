@@ -1,0 +1,33 @@
+# Python virtual environment
+venv/
+env/
+ENV/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.flaskenv
+
+# VS Code settings
+.vscode/
+
+# System files
+.DS_Store               # Mac
+Thumbs.db              # Windows
+
+# Log files
+*.log
+
+# Distribution/packaging
+dist/
+build/
+*.egg-info/
