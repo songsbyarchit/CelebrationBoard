@@ -1,6 +1,7 @@
 from flask import render_template, redirect, url_for, flash, request
 from app import app, db
 from app.models import User
+from app.forms import LoginForm, RegistrationForm    #import our new forms
 from flask_login import login_user, logout_user, login_required, current_user
 
 @app.route('/')
@@ -13,19 +14,24 @@ def login():
     if current_user.is_authenticated:    #redirect if already logged in
         return redirect(url_for('home'))
         
-    if request.method == 'POST':
-        username = request.form.get('username')    #need to validate this input
-        password = request.form.get('password')    #will be checked against hash
-        
-        user = User.query.filter_by(username=username).first()
-        if user and user.check_password(password):    #securely verify password against stored hash
+    form = LoginForm()    #create form instance
+    if form.validate_on_submit():    #handles POST request and validation
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):    #securely verify password against stored hash
             login_user(user)    #log in the user
+            flash('Successfully logged in!')    # Add success message
             next_page = request.args.get('next')    #get page they were trying to access
             return redirect(next_page if next_page else url_for('home'))
-        
-        flash('Invalid username or password')    #dont tell them which was wrong
+        else:
+            flash('Invalid username or password')    #dont tell them which was wrong
+            return render_template('login.html', form=form)    # Return to form with data
     
-    return render_template('login.html')
+    if form.errors:    # Add validation error messages
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{field}: {error}')
+    
+    return render_template('login.html', form=form)    #pass form to template
 
 @app.route('/logout')    #add logout functionality
 def logout():
@@ -37,35 +43,15 @@ def register():
     if current_user.is_authenticated:    #redirect if already logged in
         return redirect(url_for('home'))
         
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        department = request.form.get('department')
-        job_title = request.form.get('job_title')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-
-        # basic validation - will improve later
-        if User.query.filter_by(username=username).first():    #check if username exists
-            flash('Username already exists')
-            return render_template('register.html')
-            
-        if User.query.filter_by(email=email).first():    #check if email exists
-            flash('Email already registered')
-            return render_template('register.html')
-            
-        if password != confirm_password:    #check if passwords match
-            flash('Passwords do not match')
-            return render_template('register.html')
-
-        # create new user with secure password
+    form = RegistrationForm()    #create form instance
+    if form.validate_on_submit():    #handles POST request and validation
         new_user = User(
-            username=username,
-            email=email,
-            department=department,
-            job_title=job_title
+            username=form.username.data,
+            email=form.email.data,
+            department=form.department.data,
+            job_title=form.job_title.data
         )
-        new_user.set_password(password)    #hash password before storing
+        new_user.set_password(form.password.data)    #hash password before storing
         
         db.session.add(new_user)
         db.session.commit()
@@ -73,4 +59,4 @@ def register():
         flash('Registration successful! Please login.')
         return redirect(url_for('login'))
 
-    return render_template('register.html')
+    return render_template('register.html', form=form)    #pass form to template
