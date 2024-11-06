@@ -10,10 +10,10 @@ def home():
 def login():
     if request.method == 'POST':
         username = request.form.get('username')    #need to validate this input
-        password = request.form.get('password')    #need to hash this later
+        password = request.form.get('password')    #will be checked against hash
         
         user = User.query.filter_by(username=username).first()
-        if user and user.password == password:    #never compare passwords directly like this
+        if user and user.check_password(password):    #securely verify password against stored hash
             flash('Logged in successfully!')
             return redirect(url_for('home'))
         
@@ -44,14 +44,14 @@ def register():
             flash('Passwords do not match')
             return render_template('register.html')
 
-        # create new user - very insecure still
+        # create new user with secure password
         new_user = User(
             username=username,
             email=email,
             department=department,
-            job_title=job_title,
-            password=password    #storing password as plain text (bad!)
+            job_title=job_title
         )
+        new_user.set_password(password)    #hash password before storing
         
         db.session.add(new_user)
         db.session.commit()
