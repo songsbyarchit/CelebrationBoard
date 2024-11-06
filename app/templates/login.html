@@ -2,15 +2,22 @@
 {% block content %}
 <h1>Login</h1>
 <form method="POST">
+    {{ form.hidden_tag() }}
     <div>
         <label>Username</label>
-        <input type="text" name="username" required> <!-- needs proper validation later -->
+        {{ form.username(size=32) }} <!-- replaces your input with form field -->
+        {% for error in form.username.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
     </div>
     <div>
         <label>Password</label>
-        <input type="password" name="password" required> <!-- storing as plain text for now (bad) -->
+        {{ form.password(size=32) }} <!-- replaces your input with form field -->
+        {% for error in form.password.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
     </div>
-    <button type="submit">Login</button>
+    {{ form.submit(class="button") }}
 </form>
 <p>New user? <a href="{{ url_for('register') }}">Register here</a></p>
 {% endblock %}
