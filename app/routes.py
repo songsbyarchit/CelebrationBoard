@@ -1,28 +1,42 @@
 from flask import render_template, redirect, url_for, flash, request
 from app import app, db
 from app.models import User
+from flask_login import login_user, logout_user, login_required, current_user
 
 @app.route('/')
+@login_required    #protect the home page
 def home():
     return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:    #redirect if already logged in
+        return redirect(url_for('home'))
+        
     if request.method == 'POST':
         username = request.form.get('username')    #need to validate this input
         password = request.form.get('password')    #will be checked against hash
         
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):    #securely verify password against stored hash
-            flash('Logged in successfully!')
-            return redirect(url_for('home'))
+            login_user(user)    #log in the user
+            next_page = request.args.get('next')    #get page they were trying to access
+            return redirect(next_page if next_page else url_for('home'))
         
         flash('Invalid username or password')    #dont tell them which was wrong
     
     return render_template('login.html')
 
+@app.route('/logout')    #add logout functionality
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    if current_user.is_authenticated:    #redirect if already logged in
+        return redirect(url_for('home'))
+        
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')

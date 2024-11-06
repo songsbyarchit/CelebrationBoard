@@ -1,7 +1,8 @@
 from app import db    #get db from init
 from werkzeug.security import generate_password_hash, check_password_hash    #for password hashing
+from flask_login import UserMixin    #add login functionality to User model
 
-class User(db.Model):
+class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     id = db.Column(db.Integer, primary_key=True)    #basic model without security
     username = db.Column(db.String(80), unique=True, nullable=False)  #username must be unique
     email = db.Column(db.String(120), unique=True, nullable=False)    #email must be unique
