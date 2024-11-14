@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm    #secure form handling
 from wtforms import StringField, PasswordField, SelectField, SubmitField    #form fields
 from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
 from app.models import User    #for custom validation
+from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAreaField
 
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])    #required field
@@ -11,7 +12,7 @@ class LoginForm(FlaskForm):
 class RegistrationForm(FlaskForm):
     username = StringField('Username', 
                          validators=[DataRequired(), Length(min=4, max=20)])
-    email = StringField('Email', 
+    email = StringField('Email',
                        validators=[DataRequired(), Email()])    #must be valid email
     department = SelectField('Department', 
                         choices=[
@@ -55,3 +56,16 @@ class RegistrationForm(FlaskForm):
         user = User.query.filter_by(email=email.data).first()
         if user:
             raise ValidationError('Email already registered! Please use another one.')
+        
+class PostForm(FlaskForm):
+    title = StringField('Title', 
+                       validators=[
+                           DataRequired(),
+                           Length(min=4, max=100, message='Title must be between 4 and 100 characters')
+                       ])
+    content = TextAreaField('Content', 
+                          validators=[
+                              DataRequired(),
+                              Length(min=10, max=1000, message='Content must be between 10 and 1000 characters')
+                          ])
+    submit = SubmitField('Share Celebration')

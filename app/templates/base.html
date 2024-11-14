@@ -101,6 +101,7 @@
         {% if current_user.is_authenticated %}
         <!-- Show these links only to logged in users -->
         <span>Welcome, {{ current_user.username }}!</span>
+        <a href="{{ url_for('create_post') }}">Share Celebration</a>
         <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
         <!-- Show these links only to logged out users -->

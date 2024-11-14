@@ -1,6 +1,6 @@
 from flask import render_template, redirect, url_for, flash, request
 from app import app, db
-from app.models import User
+from app.models import User, Post
 from app.forms import LoginForm, RegistrationForm    #import our new forms
 from flask_login import login_user, logout_user, login_required, current_user
 
@@ -60,3 +60,21 @@ def register():
         return redirect(url_for('login'))
 
     return render_template('register.html', form=form)    #pass form to template
+
+from app.forms import PostForm    # Add this at the top with your other imports
+
+@app.route('/create_post', methods=['GET', 'POST'])
+@login_required    # Only logged in users can create posts
+def create_post():
+    form = PostForm()
+    if form.validate_on_submit():
+        post = Post(
+            title=form.title.data,
+            content=form.content.data,
+            author=current_user
+        )
+        db.session.add(post)
+        db.session.commit()
+        flash('Your celebration has been shared!')
+        return redirect(url_for('home'))
+    return render_template('create_post.html', form=form)
