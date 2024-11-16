@@ -27,6 +27,8 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)    #celebration description
     date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)    #when it was posted
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)    #who posted it
+    file_filename = db.Column(db.String(255))    #store filename of uploaded file
+    file_path = db.Column(db.String(255))    #store path to uploaded file
 
     def __repr__(self):
         return f'<Post {self.title}>'    #helps with debugging later

@@ -1,8 +1,17 @@
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager    #add login management
 
-app = Flask(__name__)    #make the app
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'app/static/uploads'  # where files will be saved
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx'}  # allowed file types
+
+# Create upload folder if it doesn't exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Your existing config
 app.config['SECRET_KEY'] = 'dev'    #dont use this in production
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'   #basic database setup
 

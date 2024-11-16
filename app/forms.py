@@ -1,4 +1,5 @@
 from flask_wtf import FlaskForm    #secure form handling
+from flask_wtf.file import FileField, FileAllowed 
 from wtforms import StringField, PasswordField, SelectField, SubmitField    #form fields
 from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
 from app.models import User    #for custom validation
@@ -68,4 +69,9 @@ class PostForm(FlaskForm):
                               DataRequired(),
                               Length(min=10, max=1000, message='Content must be between 10 and 1000 characters')
                           ])
+    file = FileField('Attach File',    # New field for file upload
+                    validators=[
+                        FileAllowed(['jpg', 'png', 'gif', 'pdf', 'doc', 'docx'], 
+                                  'Only images and documents are allowed!')
+                    ])
     submit = SubmitField('Share Celebration')

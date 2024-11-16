@@ -110,7 +110,6 @@
         {% endif %}
     </nav>
 
-    <!-- show flash messages for user feedback -->
     {% with messages = get_flashed_messages() %}
     {% if messages %}
     {% for message in messages %}
@@ -119,7 +118,6 @@
     {% endif %}
     {% endwith %}
 
-    <!-- main content goes here -->
     {% block content %}{% endblock %}
 </body>
 
