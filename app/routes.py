@@ -1,13 +1,18 @@
+import os
 from flask import render_template, redirect, url_for, flash, request
 from app import app, db
 from app.models import User, Post
 from app.forms import LoginForm, RegistrationForm    #import our new forms
 from flask_login import login_user, logout_user, login_required, current_user
+from werkzeug.utils import secure_filename
+from datetime import datetime
 
 @app.route('/')
 @login_required    #protect the home page
+
 def home():
-    return render_template('index.html')
+    posts = Post.query.order_by(Post.date_posted.desc()).all()    #get all posts, newest first
+    return render_template('index.html', posts=posts)    #pass posts to template
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -64,14 +69,30 @@ def register():
 from app.forms import PostForm    # Add this at the top with your other imports
 
 @app.route('/create_post', methods=['GET', 'POST'])
-@login_required    # Only logged in users can create posts
+@login_required
 def create_post():
     form = PostForm()
     if form.validate_on_submit():
+        file_path = None
+        file_filename = None
+        
+        if form.file.data:
+            file = form.file.data
+            # Secure the filename
+            filename = secure_filename(file.filename)
+            # Create unique filename
+            file_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+            # Make sure upload folder exists
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            # Save file
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_filename))
+
         post = Post(
             title=form.title.data,
             content=form.content.data,
-            author=current_user
+            author=current_user,
+            file_filename=file_filename,
+            file_path=f"uploads/{file_filename}" if file_filename else None
         )
         db.session.add(post)
         db.session.commit()

@@ -1,4 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>welcome to the celebration board!!</h1>
+<div class="posts">
+    <h1>Recent Celebrations</h1>
+
+    {% if posts %}
+    {% for post in posts %}
+    <div class="post-card">
+        <h2>{{ post.title }}</h2>
+        <div class="post-info">
+            <span>Posted by {{ post.author.username }}</span>
+            <span>{{ post.date_posted.strftime('%Y-%m-%d %H:%M') }}</span>
+        </div>
+        <div class="post-content">
+            {{ post.content }}
+        </div>
+        {% if post.file_filename %}
+        <div class="post-attachment">
+            {% if post.file_filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+            <img src="{{ url_for('static', filename='uploads/' + post.file_filename) }}" alt="Celebration Image"
+                class="post-image">
+            {% else %}
+            <a href="{{ url_for('static', filename='uploads/' + post.file_filename) }}" download>
+                <i class="file-icon">📎</i> Download {{ post.file_filename }}
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No celebrations posted yet. Be the first to share one!</p>
+    {% endif %}
+</div>
 {% endblock %}
