@@ -99,3 +99,62 @@ def create_post():
         flash('Your celebration has been shared!')
         return redirect(url_for('home'))
     return render_template('create_post.html', form=form)
+
+@app.route("/post/<int:post_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        flash('You can only edit your own posts!')
+        return redirect(url_for('home'))
+    
+    form = PostForm()
+    
+    if form.validate_on_submit():
+        post.title = form.title.data
+        post.content = form.content.data
+        
+        if form.file.data:
+            # Handle new file upload
+            file = form.file.data
+            filename = secure_filename(file.filename)
+            file_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_filename))
+            post.file_filename = file_filename
+            post.file_path = f"uploads/{file_filename}"
+            
+        db.session.commit()
+        flash('Your post has been updated!')
+        return redirect(url_for('home'))
+    
+    # Pre-populate form with existing data
+    elif request.method == 'GET':
+        form.title.data = post.title
+        form.content.data = post.content
+    
+    return render_template('create_post.html', 
+                         title='Edit Post', 
+                         form=form, 
+                         legend='Edit Post')
+
+@app.route("/post/<int:post_id>/delete", methods=['POST'])
+@login_required
+def delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        flash('You can only delete your own posts!')
+        return redirect(url_for('home'))
+    
+    # Delete associated file if it exists
+    if post.file_filename:
+        try:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], post.file_filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+    
+    db.session.delete(post)
+    db.session.commit()
+    flash('Your post has been deleted!')
+    return redirect(url_for('home'))

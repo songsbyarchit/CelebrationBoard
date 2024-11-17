@@ -4,6 +4,18 @@ from wtforms import StringField, PasswordField, SelectField, SubmitField    #for
 from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
 from app.models import User    #for custom validation
 from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAreaField
+from wtforms.validators import ValidationError
+
+class FileSize(object):
+    def __init__(self, max_size):
+        self.max_size = max_size
+
+    def __call__(self, form, field):
+        if field.data:
+            file_size = len(field.data.read()) / 1024 / 1024  # size in MB
+            field.data.seek(0)  # Reset file pointer
+            if file_size > self.max_size:
+                raise ValidationError(f'File size must be less than {self.max_size}MB')
 
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])    #required field
@@ -62,16 +74,19 @@ class PostForm(FlaskForm):
     title = StringField('Title', 
                        validators=[
                            DataRequired(),
-                           Length(min=4, max=100, message='Title must be between 4 and 100 characters')
+                           Length(min=4, max=100)
                        ])
     content = TextAreaField('Content', 
                           validators=[
                               DataRequired(),
-                              Length(min=10, max=1000, message='Content must be between 10 and 1000 characters')
+                              Length(min=10, max=1000)
                           ])
-    file = FileField('Attach File',    # New field for file upload
+    file = FileField('Attach File',
                     validators=[
                         FileAllowed(['jpg', 'png', 'gif', 'pdf', 'doc', 'docx'], 
-                                  'Only images and documents are allowed!')
+                                  'Only images and documents allowed!'),
+                        # Add a custom validator for file size
+                        FileSize(max_size=10) # size in MB
                     ])
+    
     submit = SubmitField('Share Celebration')
