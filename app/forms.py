@@ -1,10 +1,8 @@
 from flask_wtf import FlaskForm    #secure form handling
 from flask_wtf.file import FileField, FileAllowed 
-from wtforms import StringField, PasswordField, SelectField, SubmitField    #form fields
+from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAreaField    #form fields
 from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
 from app.models import User    #for custom validation
-from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAreaField
-from wtforms.validators import ValidationError
 
 class FileSize(object):
     def __init__(self, max_size):
@@ -90,3 +88,11 @@ class PostForm(FlaskForm):
                     ])
     
     submit = SubmitField('Share Celebration')
+
+class CommentForm(FlaskForm):
+    content = TextAreaField('Comment', 
+                          validators=[
+                              DataRequired(),
+                              Length(min=1, max=500, message='Comment must be between 1 and 500 characters')
+                          ])
+    submit = SubmitField('Post Comment')

@@ -1,14 +1,18 @@
 import os
 from flask import render_template, redirect, url_for, flash, request
 from app import app, db
-from app.models import User, Post
-from app.forms import LoginForm, RegistrationForm    #import our new forms
+from app.models import User, Post, Comment
+from app.forms import LoginForm, RegistrationForm, CommentForm   #import our new forms
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
 @app.route('/')
 @login_required    #protect the home page
+def home():
+    posts = Post.query.order_by(Post.date_posted.desc()).all()    #get all posts, newest first
+    form = CommentForm()    # Create instance of comment form
+    return render_template('index.html', posts=posts, form=form)    #pass form to template
 
 def home():
     posts = Post.query.order_by(Post.date_posted.desc()).all()    #get all posts, newest first
@@ -157,4 +161,20 @@ def delete_post(post_id):
     db.session.delete(post)
     db.session.commit()
     flash('Your post has been deleted!')
+    return redirect(url_for('home'))
+
+@app.route("/post/<int:post_id>/comment", methods=['POST'])
+@login_required
+def add_comment(post_id):
+    post = Post.query.get_or_404(post_id)
+    form = CommentForm()
+    if form.validate_on_submit():
+        comment = Comment(
+            content=form.content.data,
+            post_id=post_id,
+            author=current_user
+        )
+        db.session.add(comment)
+        db.session.commit()
+        flash('Your comment has been added!')
     return redirect(url_for('home'))
