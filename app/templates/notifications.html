@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="notifications-page">
+    <h1>Your Notifications</h1>
+    {% if notifications %}
+    {% for notification in notifications %}
+    <div class="notification-card {% if not notification.is_read %}unread{% endif %}">
+        <div class="notification-content">
+            {{ notification.content }}
+        </div>
+        <div class="notification-info">
+            <span class="notification-time">{{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+            <span class="notification-status">{{ "New" if not notification.is_read else "Read" }}</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No notifications yet!</p>
+    {% endif %}
+</div>
+{% endblock %}

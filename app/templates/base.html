@@ -309,6 +309,65 @@
         .comments-expanded {
             margin-top: 10px;
         }
+
+        .notifications {
+            position: relative;
+            color: #333;
+        }
+
+        .notifications:hover {
+            color: #4CAF50;
+        }
+
+        .notifications-page {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .notification-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .notification-card.unread {
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+
+        .notification-content {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .notification-time {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .notification-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .notification-status {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .unread .notification-status {
+            background-color: #4CAF50;
+            color: white;
+        }
     </style>
 </head>
 
@@ -319,6 +378,12 @@
         <!-- Show these links only to logged in users -->
         <span>Welcome, {{ current_user.username }}!</span>
         <a href="{{ url_for('create_post') }}">Share Celebration</a>
+        {% set unread = current_user.notifications|selectattr('is_read', 'equalto', false)|list|length %}
+        {% if unread >= 0 %}
+        <a href="{{ url_for('notifications') }}" class="notifications">
+            Notifications ({{ unread }})
+        </a>
+        {% endif %}
         <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
         <!-- Show these links only to logged out users -->

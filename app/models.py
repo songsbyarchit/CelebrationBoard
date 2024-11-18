@@ -1,22 +1,25 @@
 from app import db    #get db from init
 from werkzeug.security import generate_password_hash, check_password_hash    #for password hashing
 from flask_login import UserMixin    #add login functionality to User model
-from datetime import datetime    # Add this import if not already present
+from datetime import datetime
 
 class User(db.Model, UserMixin):    #inherit from UserMixin for login support
-    id = db.Column(db.Integer, primary_key=True)    #basic model without security
+    id = db.Column(db.Integer, primary_key=True)    #basic model w/o security for now
     username = db.Column(db.String(80), unique=True, nullable=False)  #username must be unique
     email = db.Column(db.String(120), unique=True, nullable=False)    #email must be unique
     department = db.Column(db.String(50), nullable=False)    #required field
-    job_title = db.Column(db.String(100), nullable=False)    #required field
-    password_hash = db.Column(db.String(256), nullable=False)    #store only hashed passwords, never plain text
+    job_title = db.Column(db.String(100), nullable=False)    # required field
+    password_hash = db.Column(db.String(256), nullable=False)    #  store only hashed passwords, never plain text
     posts = db.relationship('Post', backref='author', lazy=True)    #link to user's posts
     comments = db.relationship('Comment', backref='author', lazy=True)    #link to user's comments
+    is_admin = db.Column(db.Boolean, default=False)    # false by default
+    notifications = db.relationship('Notification', backref='user', lazy=True,
+                                  order_by="desc(Notification.timestamp)")
 
     def set_password(self, password):    #method to hash password before storing
         self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password):    #method to verify password against hash
+    def check_password(self, password):    #method to verify password via hash
         return check_password_hash(self.password_hash, password)
 
     def __repr__(self):
@@ -45,3 +48,20 @@ class Comment(db.Model):
 
     def __repr__(self):
         return f'<Comment {self.content[:20]}...>'
+    
+class PostDeletion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    post_title = db.Column(db.String(100))  # Store post title for reference
+    deleted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reason = db.Column(db.Text, nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Original post owner
+    admin = db.relationship('User', foreign_keys=[admin_id])
+    user = db.relationship('User', foreign_keys=[user_id])
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
