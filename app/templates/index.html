@@ -2,7 +2,23 @@
 {% block content %}
 <div class="posts">
     <h1>Recent Celebrations</h1>
-
+    <div class="filter-section">
+        <form method="GET" class="filter-form">
+            {{ filter_form.csrf_token }}
+            <div class="filter-group">
+                {{ filter_form.department.label }}
+                {{ filter_form.department(class="filter-select") }}
+            </div>
+            <div class="filter-group">
+                {{ filter_form.sort_by.label }}
+                {{ filter_form.sort_by(class="filter-select") }}
+            </div>
+            <div class="filter-group">
+                {{ filter_form.search(placeholder="Search posts...", class="filter-input") }}
+            </div>
+            {{ filter_form.submit(class="filter-submit") }}
+        </form>
+    </div>
     {% if posts %}
     {% for post in posts %}
     <div class="post-card">

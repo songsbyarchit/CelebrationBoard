@@ -96,3 +96,19 @@ class CommentForm(FlaskForm):
                               Length(min=1, max=500, message='Comment must be between 1 and 500 characters')
                           ])
     submit = SubmitField('Post Comment')
+
+class FilterForm(FlaskForm):
+    department = SelectField('Department', choices=[('', 'All Departments'), 
+                                                  ('engineering', 'Engineering'),
+                                                  ('sales', 'Sales'),
+                                                  ('marketing', 'Marketing'),
+                                                  ('hr', 'HR'),
+                                                  ('finance', 'Finance')])
+    sort_by = SelectField('Sort by', choices=[
+        ('date_desc', 'Newest First'),
+        ('date_asc', 'Oldest First'),
+        ('likes', 'Most Liked'),
+        ('comments', 'Most Comments')
+    ])
+    search = StringField('Search posts')
+    submit = SubmitField('Apply Filters')
