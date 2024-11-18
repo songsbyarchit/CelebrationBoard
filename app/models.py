@@ -15,6 +15,8 @@ class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     is_admin = db.Column(db.Boolean, default=False)    # false by default
     notifications = db.relationship('Notification', backref='user', lazy=True,
                                   order_by="desc(Notification.timestamp)")
+    likes = db.relationship('Like', backref='user', lazy=True)
+
 
     def set_password(self, password):    #method to hash password before storing
         self.password_hash = generate_password_hash(password)
@@ -35,6 +37,7 @@ class Post(db.Model):
     file_path = db.Column(db.String(255))    #store path to uploaded file
     comments = db.relationship('Comment', backref='post', lazy=True, 
                              cascade='all, delete-orphan')    #link to comments
+    likes = db.relationship('Like', backref='post', lazy=True)
 
     def __repr__(self):
         return f'<Post {self.title}>'    #helps with debugging later
@@ -65,3 +68,9 @@ class Notification(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
+
+class Like(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)

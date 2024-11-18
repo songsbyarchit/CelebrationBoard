@@ -41,7 +41,14 @@
             {% endif %}
         </div>
         {% endif %}
-
+        <div class="likes-section">
+            <form class="like-form" action="{{ url_for('like_post', post_id=post.id) }}" method="POST">
+                {% set has_liked = current_user.id in post.likes|map(attribute='user_id')|list %}
+                <button type="submit" class="btn-like {{ 'liked' if has_liked else '' }}">
+                    ❤️ {{ post.likes|length }} likes
+                </button>
+            </form>
+        </div>
         <div class="comments-section">
             <h3>Comments ({{ post.comments|length }})</h3>
             {% if post.comments %}

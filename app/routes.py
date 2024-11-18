@@ -1,7 +1,7 @@
 from flask import render_template, redirect, url_for, flash, request
 from werkzeug.utils import secure_filename
 from app import app, db
-from app.models import User, Post, Notification, Comment
+from app.models import User, Post, Notification, Comment, Like
 from app.forms import LoginForm, RegistrationForm, PostForm, CommentForm
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
@@ -176,6 +176,24 @@ def add_comment(post_id):
         db.session.add(comment)
         db.session.commit()
         flash('Your comment has been added!')
+    return redirect(url_for('home'))
+
+@app.route('/post/<int:post_id>/like', methods=['POST'])
+@login_required
+def like_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    
+    like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+    
+    if like:
+        # Unlike if already liked
+        db.session.delete(like)
+    else:
+        # Add new like
+        like = Like(user_id=current_user.id, post_id=post_id)
+        db.session.add(like)
+    
+    db.session.commit()
     return redirect(url_for('home'))
 
 @app.route('/notifications')
