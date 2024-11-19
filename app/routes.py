@@ -239,3 +239,40 @@ def notifications():
         notification.is_read = True
     db.session.commit()
     return render_template('notifications.html', notifications=notifications)
+
+@app.route('/admin/manage', methods=['GET'])
+@login_required
+def admin_manage():
+    if not current_user.is_admin and current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
+        flash('Access denied')
+        return redirect(url_for('home'))
+    
+    users = User.query.all()
+    return render_template('admin_manage.html', users=users)
+
+@app.route('/admin/toggle/<int:user_id>', methods=['POST'])
+@login_required
+def toggle_admin(user_id):
+    if current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
+        flash('Only super admin can modify admin status')
+        return redirect(url_for('home'))
+    
+    user = User.query.get_or_404(user_id)
+    if user.email == os.environ.get('SUPER_ADMIN_EMAIL'):
+        flash('Cannot modify super admin status')
+        return redirect(url_for('admin_manage'))
+    
+    user.is_admin = not user.is_admin
+    user.promoted_by_id = current_user.id if user.is_admin else None
+    
+    log = AdminLog(
+        admin_id=current_user.id,
+        action=f"{'Promoted to' if user.is_admin else 'Removed from'} admin",
+        details=f"User affected: {user.username}"
+    )
+    
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f"User {user.username} {'promoted to' if user.is_admin else 'removed from'} admin role")
+    return redirect(url_for('admin_manage'))

@@ -13,10 +13,18 @@ class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     posts = db.relationship('Post', backref='author', lazy=True)    #link to user's posts
     comments = db.relationship('Comment', backref='author', lazy=True)    #link to user's comments
     is_admin = db.Column(db.Boolean, default=False)    # false by default
+    promoted_by_id = db.Column(db.Integer, db.Column(db.ForeignKey('user.id')))
+    admin_action_logs = db.relationship('AdminLog', backref='admin', lazy=True)
     notifications = db.relationship('Notification', backref='user', lazy=True,
                                   order_by="desc(Notification.timestamp)")
     likes = db.relationship('Like', backref='user', lazy=True)
 
+class AdminLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    details = db.Column(db.Text)
 
     def set_password(self, password):    #method to hash password before storing
         self.password_hash = generate_password_hash(password)
