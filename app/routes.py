@@ -11,38 +11,42 @@ import os
 @login_required
 def home():
     form = CommentForm()
-    filter_form = FilterForm()
+    filter_form = FilterForm(request.args)  # Initialize with request args to preserve selections
     
     # Get base query
     query = Post.query
     
-    # Apply filters
+    # Apply department filter
     if filter_form.department.data and filter_form.department.data != '':
         query = query.join(User).filter(User.department == filter_form.department.data)
-        
+    
+    # Apply search filter
     if filter_form.search.data:
         search = f"%{filter_form.search.data}%"
         query = query.filter((Post.title.like(search)) | (Post.content.like(search)))
     
     # Apply sorting
-    if filter_form.sort_by.data:
-        if filter_form.sort_by.data == 'date_desc':
-            query = query.order_by(Post.date_posted.desc())
-        elif filter_form.sort_by.data == 'date_asc':
-            query = query.order_by(Post.date_posted.asc())
-        elif filter_form.sort_by.data == 'likes':
-            query = query.outerjoin(Like).group_by(Post.id).order_by(db.func.count(Like.id).desc())
-        elif filter_form.sort_by.data == 'comments':
-            query = query.outerjoin(Comment).group_by(Post.id).order_by(db.func.count(Comment.id).desc())
+    sort_by = filter_form.sort_by.data or 'date_desc'  # Default to newest first
+    if sort_by == 'date_desc':
+        query = query.order_by(Post.date_posted.desc())
+    elif sort_by == 'date_asc':
+        query = query.order_by(Post.date_posted.asc())
+    elif sort_by == 'likes':
+        query = query.outerjoin(Like)\
+                    .group_by(Post.id)\
+                    .order_by(db.func.count(Like.id).desc(), Post.date_posted.desc())
+    elif sort_by == 'comments':
+        query = query.outerjoin(Comment)\
+                    .group_by(Post.id)\
+                    .order_by(db.func.count(Comment.id).desc(), Post.date_posted.desc())
     else:
         query = query.order_by(Post.date_posted.desc())
     
     posts = query.all()
-    return render_template('index.html', posts=posts, form=form, filter_form=filter_form)
-
-def home():
-    posts = Post.query.order_by(Post.date_posted.desc()).all()    #get all posts, newest first
-    return render_template('index.html', posts=posts)    #pass posts to template
+    return render_template('index.html', 
+                         posts=posts, 
+                         form=form, 
+                         filter_form=filter_form)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
