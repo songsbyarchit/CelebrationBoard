@@ -11,7 +11,7 @@ import os
 @login_required
 def home():
     form = CommentForm()
-    filter_form = FilterForm(request.args)  # Initialize with request args to preserve selections
+    filter_form = FilterForm(request.args)  # Initialize with request args
     
     # Get base query
     query = Post.query
@@ -26,7 +26,7 @@ def home():
         query = query.filter((Post.title.like(search)) | (Post.content.like(search)))
     
     # Apply sorting
-    sort_by = filter_form.sort_by.data or 'date_desc'  # Default to newest first
+    sort_by = filter_form.sort_by.data or 'date_desc'  # Default to newest
     if sort_by == 'date_desc':
         query = query.order_by(Post.date_posted.desc())
     elif sort_by == 'date_asc':
@@ -35,18 +35,11 @@ def home():
         query = query.outerjoin(Like)\
                     .group_by(Post.id)\
                     .order_by(db.func.count(Like.id).desc(), Post.date_posted.desc())
-    elif sort_by == 'comments':
-        query = query.outerjoin(Comment)\
-                    .group_by(Post.id)\
-                    .order_by(db.func.count(Comment.id).desc(), Post.date_posted.desc())
     else:
         query = query.order_by(Post.date_posted.desc())
     
     posts = query.all()
-    return render_template('index.html', 
-                         posts=posts, 
-                         form=form, 
-                         filter_form=filter_form)
+    return render_template('index.html', posts=posts, form=form, filter_form=filter_form)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

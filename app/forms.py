@@ -98,12 +98,14 @@ class CommentForm(FlaskForm):
     submit = SubmitField('Post Comment')
 
 class FilterForm(FlaskForm):
-    department = SelectField('Department', choices=[('', 'All Departments'), 
-                                                  ('engineering', 'Engineering'),
-                                                  ('sales', 'Sales'),
-                                                  ('marketing', 'Marketing'),
-                                                  ('hr', 'HR'),
-                                                  ('finance', 'Finance')])
+    department = SelectField('Department', choices=[
+        ('', 'All Departments'),
+        ('engineering', 'Engineering'),
+        ('sales', 'Sales'),
+        ('marketing', 'Marketing'),
+        ('hr', 'HR'),
+        ('finance', 'Finance')
+    ])
     sort_by = SelectField('Sort by', choices=[
         ('date_desc', 'Newest First'),
         ('date_asc', 'Oldest First'),
