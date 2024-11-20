@@ -428,6 +428,64 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        .admin-panel {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .user-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .user-info .email {
+            color: #666;
+        }
+
+        .user-info .department {
+            background: #f0f0f0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .status {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .status.admin {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-toggle-admin {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-toggle-admin.remove {
+            background: #dc3545;
+        }
     </style>
 </head>
 
@@ -443,6 +501,9 @@
         <a href="{{ url_for('notifications') }}" class="notifications">
             Notifications ({{ unread }})
         </a>
+        {% if current_user.is_admin or current_user.email == config['SUPER_ADMIN_EMAIL'] %}
+        <a href="{{ url_for('admin_manage') }}">Admin Panel</a>
+        {% endif %}
         {% endif %}
         <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}

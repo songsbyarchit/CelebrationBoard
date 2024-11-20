@@ -9,6 +9,7 @@ load_dotenv()  # Load environment variables
 app = Flask(__name__)
 
 # File upload configuration
+app.config['SUPER_ADMIN_EMAIL'] = os.environ.get('SUPER_ADMIN_EMAIL')
 app.config['UPLOAD_FOLDER'] = 'app/static/uploads'  # where files will be saved
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx'}  # allowed file types

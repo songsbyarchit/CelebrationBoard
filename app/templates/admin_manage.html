@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-panel">
+    <h1>Admin Management</h1>
+    <div class="admin-users">
+        {% for user in users %}
+        <div class="user-card">
+            <div class="user-info">
+                <strong>{{ user.username }}</strong>
+                <span class="email">{{ user.email }}</span>
+                <span class="department">{{ user.department }}</span>
+                <span class="status {% if user.is_admin %}admin{% endif %}">
+                    {{ 'Admin' if user.is_admin else 'User' }}
+                </span>
+            </div>
+            {% if user.email != super_admin_email %}
+            <div class="user-actions">
+                <form action="{{ url_for('toggle_admin', user_id=user.id) }}" method="POST">
+                    <button type="submit" class="btn-toggle-admin {% if user.is_admin %}remove{% endif %}"
+                        onclick="return confirm('Are you sure you want to {% if user.is_admin %}remove{% else %}add{% endif %} admin privileges?');">
+                        {{ 'Remove Admin' if user.is_admin else 'Make Admin' }}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

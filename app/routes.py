@@ -1,11 +1,13 @@
 from flask import render_template, redirect, url_for, flash, request
 from werkzeug.utils import secure_filename
 from app import app, db
-from app.models import User, Post, Notification, Comment, Like
+from app.models import User, Post, Notification, Comment, Like, AdminLog
 from app.forms import LoginForm, RegistrationForm, PostForm, CommentForm, FilterForm
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
 import os
+
+print("AdminLog:", AdminLog)
 
 @app.route('/', methods=['GET'])
 @login_required
@@ -77,12 +79,15 @@ def register():
         
     form = RegistrationForm()
     if form.validate_on_submit():
+        # Check if email matches SUPER_ADMIN_EMAIL from .env
+        is_admin = form.email.data == app.config['SUPER_ADMIN_EMAIL']
+        
         user = User(
             username=form.username.data,
             email=form.email.data,
             department=form.department.data,
             job_title=form.job_title.data,
-            is_admin=form.email.data.endswith('@admin.com')  # Make users with @admin.com email admins
+            is_admin=is_admin  # Set admin status based on superadmin email
         )
         user.set_password(form.password.data)
         
@@ -93,8 +98,6 @@ def register():
         return redirect(url_for('login'))
 
     return render_template('register.html', form=form)
-
-from app.forms import PostForm    # Add this at the top with your other imports
 
 @app.route('/create_post', methods=['GET', 'POST'])
 @login_required
@@ -241,31 +244,43 @@ def admin_manage():
         return redirect(url_for('home'))
     
     users = User.query.all()
-    return render_template('admin_manage.html', users=users)
+    return render_template('admin_manage.html', users=users, super_admin_email=os.environ.get('SUPER_ADMIN_EMAIL'))
 
 @app.route('/admin/toggle/<int:user_id>', methods=['POST'])
 @login_required
 def toggle_admin(user_id):
-    if current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
-        flash('Only super admin can modify admin status')
-        return redirect(url_for('home'))
-    
-    user = User.query.get_or_404(user_id)
-    if user.email == os.environ.get('SUPER_ADMIN_EMAIL'):
-        flash('Cannot modify super admin status')
+    try:
+        # Ensure only super admin can toggle admin status
+        if current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
+            flash('Only super admin can modify admin status')
+            return redirect(url_for('home'))
+
+        # Fetch the target user
+        user = User.query.get_or_404(user_id)
+
+        # Prevent modifying the super admin's own status
+        if user.email == os.environ.get('SUPER_ADMIN_EMAIL'):
+            flash('Cannot modify super admin status')
+            return redirect(url_for('admin_manage'))
+
+        # Toggle admin status
+        user.is_admin = not user.is_admin
+        user.promoted_by_id = current_user.id if user.is_admin else None
+
+        # Log the action
+        log = AdminLog(
+            admin_id=current_user.id,
+            action=f"{'Promoted to' if user.is_admin else 'Removed from'} admin",
+            details=f"User affected: {user.username}"
+        )
+        db.session.add(log)  # Add log to the database session
+        db.session.commit()  # Commit both the user and the log changes
+
+        # Feedback to the user
+        flash(f"User {user.username} {'promoted to' if user.is_admin else 'removed from'} admin role")
         return redirect(url_for('admin_manage'))
-    
-    user.is_admin = not user.is_admin
-    user.promoted_by_id = current_user.id if user.is_admin else None
-    
-    log = AdminLog(
-        admin_id=current_user.id,
-        action=f"{'Promoted to' if user.is_admin else 'Removed from'} admin",
-        details=f"User affected: {user.username}"
-    )
-    
-    db.session.add(log)
-    db.session.commit()
-    
-    flash(f"User {user.username} {'promoted to' if user.is_admin else 'removed from'} admin role")
-    return redirect(url_for('admin_manage'))
+
+    except Exception as e:
+        db.session.rollback()  # Rollback on error to maintain database integrity
+        flash(f"An error occurred: {str(e)}")
+        return redirect(url_for('admin_manage'))
