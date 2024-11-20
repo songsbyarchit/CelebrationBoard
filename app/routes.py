@@ -6,8 +6,7 @@ from app.forms import LoginForm, RegistrationForm, PostForm, CommentForm, Filter
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
 import os
-
-print("AdminLog:", AdminLog)
+import uuid
 
 @app.route('/', methods=['GET'])
 @login_required
@@ -99,6 +98,9 @@ def register():
 
     return render_template('register.html', form=form)
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
 @app.route('/create_post', methods=['GET', 'POST'])
 @login_required
 def create_post():
@@ -109,21 +111,29 @@ def create_post():
         
         if form.file.data:
             file = form.file.data
-            # Secure the filename
-            filename = secure_filename(file.filename)
-            # Create unique filename
-            file_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
-            # Make sure upload folder exists
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            # Save file
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_filename))
+            # Validate the file type
+            if not allowed_file(file.filename):
+                flash('Invalid file type. Only the following types are allowed: png, jpg, jpeg, gif, pdf, doc, docx.')
+                return redirect(request.url)
 
+            # Generate a secure and unique filename
+            unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+            # Ensure the upload folder exists
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            # Save the file
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+            
+            # Update file path and filename for the database
+            file_filename = unique_filename
+            file_path = f"uploads/{unique_filename}"
+
+        # Create the post object
         post = Post(
             title=form.title.data,
             content=form.content.data,
             author=current_user,
             file_filename=file_filename,
-            file_path=f"uploads/{file_filename}" if file_filename else None
+            file_path=file_path
         )
         db.session.add(post)
         db.session.commit()
