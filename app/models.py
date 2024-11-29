@@ -76,9 +76,12 @@ class PostDeletion(db.Model):
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    is_read = db.Column(db.Boolean, default=False)
+    content = db.Column(db.String(255), nullable=False)
+    notification_type = db.Column(db.String(50), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=True) 
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+
 
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)

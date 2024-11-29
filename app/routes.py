@@ -198,29 +198,14 @@ def delete_post(post_id):
         
     return redirect(url_for('home'))
 
-@app.route("/post/<int:post_id>/comment", methods=['POST'])
-@login_required
-def add_comment(post_id):
-    post = Post.query.get_or_404(post_id)
-    form = CommentForm()
-    if form.validate_on_submit():
-        comment = Comment(
-            content=form.content.data,
-            post_id=post_id,
-            author=current_user
-        )
-        db.session.add(comment)
-        db.session.commit()
-        flash('Your comment has been added!')
-    return redirect(url_for('home'))
-
 @app.route('/post/<int:post_id>/like', methods=['POST'])
 @login_required
 def like_post(post_id):
     post = Post.query.get_or_404(post_id)
-    
+
     like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
-    
+    notification_sent = False
+
     if like:
         # Unlike if already liked
         db.session.delete(like)
@@ -228,8 +213,60 @@ def like_post(post_id):
         # Add new like
         like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(like)
-    
+
+        # Send notification to post author (if not the liker)
+        if post.author != current_user:
+            notification = Notification(
+                user_id=post.author.id,
+                content=f"{current_user.username} liked your post: '{post.title}'.",
+                notification_type="like",  # Add notification type
+                post_id=post_id
+            )
+            db.session.add(notification)
+            notification_sent = True
+
     db.session.commit()
+
+    # Optional: Flash message for debugging
+    if notification_sent:
+        flash('Notification sent to post author.')
+
+    return redirect(url_for('home'))
+
+@app.route("/post/<int:post_id>/comment", methods=['POST'])
+@login_required
+def add_comment(post_id):
+    post = Post.query.get_or_404(post_id)
+    form = CommentForm()
+    notification_sent = False
+
+    if form.validate_on_submit():
+        comment = Comment(
+            content=form.content.data,
+            post_id=post_id,
+            author=current_user
+        )
+        db.session.add(comment)
+
+        # Send notification to post author (if not the commenter)
+        if post.author != current_user:
+            notification = Notification(
+                user_id=post.author.id,
+                content=f"{current_user.username} commented on your post: '{post.title}'.",
+                notification_type="comment",  # Add notification type
+                post_id=post_id
+            )
+            db.session.add(notification)
+            notification_sent = True
+
+        db.session.commit()
+
+        # Optional: Flash message for debugging
+        if notification_sent:
+            flash('Notification sent to post author.')
+
+        flash('Your comment has been added!')
+
     return redirect(url_for('home'))
 
 @app.route('/notifications')
