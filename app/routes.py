@@ -2,17 +2,18 @@ from flask import render_template, redirect, url_for, flash, request
 from werkzeug.utils import secure_filename
 from app import app, db
 from app.models import User, Post, Notification, Comment, Like, AdminLog
-from app.forms import LoginForm, RegistrationForm, PostForm, CommentForm, FilterForm
+from app.forms import LoginForm, RegistrationForm, PostForm, CommentForm, FilterForm, MFAVerifyForm
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
 import os
 import uuid
+import pyotp
 
 @app.route('/', methods=['GET'])
 @login_required
 def home():
     form = CommentForm()
-    filter_form = FilterForm(request.args)  # Initialize with request args
+    filter_form = FilterForm(request.args)  # initialize with request args
     
     # Get base query
     query = Post.query
@@ -27,7 +28,7 @@ def home():
         query = query.filter((Post.title.like(search)) | (Post.content.like(search)))
     
     # Apply sorting
-    sort_by = filter_form.sort_by.data or 'date_desc'  # Default to newest
+    sort_by = filter_form.sort_by.data or 'date_desc'  #default newest shows first
     if sort_by == 'date_desc':
         query = query.order_by(Post.date_posted.desc())
     elif sort_by == 'date_asc':
@@ -42,29 +43,66 @@ def home():
     posts = query.all()
     return render_template('index.html', posts=posts, form=form, filter_form=filter_form)
 
+@app.route('/mfa', methods=['GET', 'POST'])
+@login_required
+def mfa():
+    form = MFAVerifyForm()
+    if form.validate_on_submit():
+        user = User.query.get(current_user.id)
+
+        totp = pyotp.TOTP(user.mfa_secret)
+        if totp.verify(form.token.data):
+            flash('MFA verification successful!', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid MFA token. Please try again.', 'danger')
+
+    return render_template('mfa.html', form=form)
+
+@app.route('/verify_otp', methods=['GET', 'POST'])
+def verify_otp():
+    if request.method == 'POST':
+        entered_otp = request.form['otp']
+        user = User.query.filter_by(username=current_user.username).first()
+
+        if pyotp.TOTP(user.mfa_secret).verify(entered_otp):
+            flash('Login successful', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid OTP. Please try again.', 'danger')
+
+    return render_template('verify_otp.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:    #redirect if already logged in
+    if current_user.is_authenticated:
         return redirect(url_for('home'))
-        
-    form = LoginForm()    #create form instance
-    if form.validate_on_submit():    #handles POST request and validation
+
+    form = LoginForm()
+    if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):    #securely verify password against stored hash
-            login_user(user)    #log in the user
-            flash('Successfully logged in!')    # Add success message
-            next_page = request.args.get('next')    #get page they were trying to access
+        if user and user.check_password(form.password.data):
+            login_user(user)
+            flash('Successfully logged in!')
+
+            # Check if MFA enabled foruser
+            if user.mfa_enabled:
+                # Redirect to MFA page for token verification
+                return redirect(url_for('mfa'))
+
+            # If no mFA proceed to the originally requested page
+            next_page = request.args.get('next')
             return redirect(next_page if next_page else url_for('home'))
         else:
-            flash('Invalid username or password')    #dont tell them which was wrong
-            return render_template('login.html', form=form)    # Return to form with data
-    
-    if form.errors:    # Add validation error messages
+            flash('Invalid username or password')
+            return render_template('login.html', form=form)
+
+    if form.errors:
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f'{field}: {error}')
-    
-    return render_template('login.html', form=form)    #pass form to template
+
+    return render_template('login.html', form=form)
 
 @app.route('/logout')    #add logout functionality
 def logout():

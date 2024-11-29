@@ -4,6 +4,10 @@ from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAr
 from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
 from app.models import User    #for custom validation
 
+class MFAForm(FlaskForm):
+    token = StringField('Enter your MFA Code', validators=[DataRequired()])
+    submit = SubmitField('Verify')
+
 class FileSize(object):
     def __init__(self, max_size):
         self.max_size = max_size

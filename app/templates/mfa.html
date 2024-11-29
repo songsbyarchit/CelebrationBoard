@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="mfa-container">
+    <h2>Two-Factor Authentication</h2>
+    <form method="POST" action="{{ url_for('verify_mfa') }}">
+      {{ form.hidden_tag() }}
+      <div>
+        {{ form.token.label }}
+        {{ form.token(class="form-control") }}
+      </div>
+      <div>
+        {{ form.submit(class="btn btn-primary") }}
+      </div>
+    </form>
+  </div>
+{% endblock %}

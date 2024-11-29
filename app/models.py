@@ -1,7 +1,7 @@
-from app import db    #get db from init
-from werkzeug.security import generate_password_hash, check_password_hash    #for password hashing
-from flask_login import UserMixin    #add login functionality to User model
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 from datetime import datetime, timedelta
+import pyotp
 
 class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     id = db.Column(db.Integer, primary_key=True)    #basic model w/o security for now
