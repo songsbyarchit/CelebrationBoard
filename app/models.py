@@ -1,7 +1,7 @@
 from app import db    #get db from init
 from werkzeug.security import generate_password_hash, check_password_hash    #for password hashing
 from flask_login import UserMixin    #add login functionality to User model
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     id = db.Column(db.Integer, primary_key=True)    #basic model w/o security for now
@@ -18,6 +18,8 @@ class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     notifications = db.relationship('Notification', backref='user', lazy=True,
                                   order_by="desc(Notification.timestamp)")
     likes = db.relationship('Like', backref='user', lazy=True)
+    mfa_otp = db.Column(db.String(6), nullable=True)
+    mfa_expiry = db.Column(db.DateTime, nullable=True)
     
     def set_password(self, password):    #method to hash password before storing
         self.password_hash = generate_password_hash(password)
@@ -27,6 +29,11 @@ class User(db.Model, UserMixin):    #inherit from UserMixin for login support
 
     def __repr__(self):
         return f'<User {self.username}>'
+    
+    def generate_mfa_secret(self):
+        if not self.mfa_secret:
+            self.mfa_secret = pyotp.random_base32()
+        return self.mfa_secret
 
 class AdminLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
