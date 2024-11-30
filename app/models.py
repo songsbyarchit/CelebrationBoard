@@ -48,7 +48,7 @@ class Post(db.Model):
     file_path = db.Column(db.String(255))    #store path to uploaded file
     comments = db.relationship('Comment', backref='post', lazy=True, 
                              cascade='all, delete-orphan')    #link to comments
-    likes = db.relationship('Like', backref='post', lazy=True)
+    likes = db.relationship('Like', backref='post', lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Post {self.title}>'    #helps with debugging later
