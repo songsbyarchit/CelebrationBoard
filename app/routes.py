@@ -203,6 +203,7 @@ def delete_post(post_id):
 def add_comment(post_id):
     post = Post.query.get_or_404(post_id)
     form = CommentForm()
+    
     if form.validate_on_submit():
         comment = Comment(
             content=form.content.data,
@@ -211,25 +212,47 @@ def add_comment(post_id):
         )
         db.session.add(comment)
         db.session.commit()
+        
+        # Add notification for the post author, but not if the user is the author of the post
+        if post.author != current_user:  # Only notify if the user is not the post author
+            notification = Notification(
+                user_id=post.author.id,
+                content=f"{current_user.username} commented on your post: \"{post.title}\"",
+                notification_type='comment',
+                is_read=False
+            )
+            db.session.add(notification)
+            db.session.commit()
+        
         flash('Your comment has been added!')
+    
     return redirect(url_for('home'))
 
 @app.route('/post/<int:post_id>/like', methods=['POST'])
 @login_required
 def like_post(post_id):
     post = Post.query.get_or_404(post_id)
-    
     like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
     
     if like:
-        # Unlike if already liked
         db.session.delete(like)
     else:
-        # Add new like
         like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(like)
     
     db.session.commit()
+
+    # Add notification for the post author, but not if the user liked their own post
+    if like and post.author != current_user:  # Only notify if the user is not the post author
+        notification = Notification(
+            user_id=post.author.id,
+            content=f"{current_user.username} liked your post: \"{post.title}\"",
+            notification_type='like',  # Specify the type
+            is_read=False
+        )
+        db.session.add(notification)
+        db.session.commit()
+
     return redirect(url_for('home'))
 
 @app.route('/notifications')

@@ -1,39 +1,47 @@
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager    #add login management
+from flask_login import LoginManager
 from dotenv import load_dotenv
 
-load_dotenv()  # Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
-# File upload configuration
+# Initialize db and login manager before importing models
 app.config['SUPER_ADMIN_EMAIL'] = os.environ.get('SUPER_ADMIN_EMAIL')
-app.config['UPLOAD_FOLDER'] = 'app/static/uploads'  # where files will be saved
+app.config['UPLOAD_FOLDER'] = 'app/static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx'}  # allowed file types
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx'}
 
-# Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Security configuration
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)    #use environment variable or generate random key
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'   #basic database setup
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 
 # Initialize extensions
-db = SQLAlchemy(app)    #create the database
-login_manager = LoginManager(app)    #create login manager instance
-login_manager.login_view = 'login'    #set login page for @login_required
-login_manager.login_message_category = 'info'    #set flash message category
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+login_manager.login_message_category = 'info'
 
-@login_manager.user_loader    #tell flask-login how to load users
+# Import models after db initialization
+from app import routes
+from app import models
+
+@login_manager.user_loader
 def load_user(id):
    return User.query.get(int(id))
 
-# Create tables before importing routes and models
+# Create the admin user by default
 with app.app_context():
-   from app import routes  #get the routes
-   from app import models  #get the database models
-   from app.models import User    #needed for load_user
-   db.create_all()    #create all database tables
+    db.create_all()  # Create all database tables
+
+    # Check if admin exists, if not, create one
+    from app.models import User  # Move import here to avoid circular import
+    if not User.query.filter_by(username='admin').first():
+        admin_user = User(username='admin', email='arsachde@cisco.com', department='Engineering', job_title='System Admin')
+        admin_user.set_password('Karnal.123')
+        admin_user.is_admin = True
+        db.session.add(admin_user)
+        db.session.commit()
