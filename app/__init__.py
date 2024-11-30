@@ -17,7 +17,7 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', '
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://arsachde:Karnal.123@localhost/celebrationboard'  # PostgreSQL URI
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -41,7 +41,7 @@ with app.app_context():
     from app.models import User  # Move import here to avoid circular import
     if not User.query.filter_by(username='admin').first():
         admin_user = User(username='admin', email='arsachde@cisco.com', department='Engineering', job_title='System Admin')
-        admin_user.set_password('Karnal.123')
+        admin_user.set_password(os.environ.get('ADMIN_PASSWORD'))  # Get password from .env
         admin_user.is_admin = True
         db.session.add(admin_user)
         db.session.commit()
