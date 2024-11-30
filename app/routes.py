@@ -188,7 +188,8 @@ def delete_post(post_id):
             # Create notification for the post owner
             notification = Notification(
                 user_id=post.author.id,
-                content=f'Your post "{post.title}" was deleted by an admin. Reason: {reason}'
+                content=f'Your post "{post.title}" was deleted by an admin. Reason: {reason}',
+                notification_type='post_deletion'
             )
             db.session.add(notification)
             flash(f'Post deleted and notification sent to user.')
