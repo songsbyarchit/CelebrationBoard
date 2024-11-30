@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
+from flask_login import LoginManager, logout_user
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash
@@ -35,8 +35,9 @@ from app import routes
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Ensure tables are created
+# Ensure tables are created and users logged out by default
 with app.app_context():
+    logout_user()
     db.create_all()
     
     # Check if the admin exists
@@ -46,10 +47,10 @@ with app.app_context():
         # Create an admin user
         admin = User(
             username='admin',
-            email=os.environ.get('SUPER_ADMIN_EMAIL'),  # Assuming SUPER_ADMIN_EMAIL is set in .env
-            department='Administration',
-            job_title='Admin',
-            password_hash=generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'defaultpassword')),  # Use a default password if none set
+            email=os.environ.get('SUPER_ADMIN_EMAIL'),
+            department='Engineering',
+            job_title='System Admin',
+            password_hash=generate_password_hash(os.environ.get('ADMIN_PASSWORD')),           
             is_admin=True
         )
         db.session.add(admin)

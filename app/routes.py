@@ -315,7 +315,7 @@ def toggle_admin(user_id):
         elif not user.is_admin and was_admin:
             notification = Notification(
                 user_id=user.id,
-                content=f"You have been removed from admin by {current_user.username}",
+                content=f"Your admin rights have been revoked by {current_user.username}",
                 is_read=False
             )
             db.session.add(notification)
