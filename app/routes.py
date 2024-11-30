@@ -183,12 +183,15 @@ def edit_post(post_id):
 def delete_post(post_id):
     post = Post.query.get_or_404(post_id)
     if current_user.is_admin or post.author == current_user:
+        # Delete likes first
+        Like.query.filter_by(post_id=post.id).delete()
+        
         reason = request.form.get('delete_reason')
         if current_user.is_admin and current_user != post.author:
-            # Create notification for the post owner
             notification = Notification(
                 user_id=post.author.id,
-                content=f'Your post "{post.title}" was deleted by an admin. Reason: {reason}'
+                content=f'Your post "{post.title}" was deleted by an admin. Reason: {reason}',
+                notification_type="post_deleted"
             )
             db.session.add(notification)
             flash(f'Post deleted and notification sent to user.')
@@ -210,6 +213,15 @@ def add_comment(post_id):
             author=current_user
         )
         db.session.add(comment)
+        
+        if current_user.id != post.author.id:
+            notification = Notification(
+                user_id=post.author.id,
+                content=f'{current_user.username} commented on your post "{post.title}".',
+                notification_type="post_commented"
+            )
+            db.session.add(notification)
+        
         db.session.commit()
         flash('Your comment has been added!')
     return redirect(url_for('home'))
@@ -222,12 +234,18 @@ def like_post(post_id):
     like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
     
     if like:
-        # Unlike if already liked
         db.session.delete(like)
     else:
-        # Add new like
         like = Like(user_id=current_user.id, post_id=post_id)
         db.session.add(like)
+        
+        if current_user.id != post.author.id:
+            notification = Notification(
+                user_id=post.author.id,
+                content=f'{current_user.username} liked your post "{post.title}"',
+                notification_type="post_liked"
+            )
+            db.session.add(notification)
     
     db.session.commit()
     return redirect(url_for('home'))
@@ -254,6 +272,16 @@ def admin_manage():
         return redirect(url_for('home'))
     
     users = User.query.all()
+    
+    for user in users:
+        if not user.is_admin and user.email == os.environ.get('SUPER_ADMIN_EMAIL'):  
+            notification = Notification(
+                user_id=user.id,
+                content=f'You have been promoted to admin by {current_user.username}.'
+            )
+            db.session.add(notification)
+    
+    db.session.commit()
     return render_template('admin_manage.html', users=users, super_admin_email=os.environ.get('SUPER_ADMIN_EMAIL'))
 
 @app.route('/admin/toggle/<int:user_id>', methods=['POST'])

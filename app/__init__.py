@@ -19,7 +19,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Security configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)    #use environment variable or generate random key
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'   #basic database setup
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 
 # Initialize extensions
 db = SQLAlchemy(app)    #create the database
