@@ -2,8 +2,13 @@ from app import app
 import os
 
 if __name__ == '__main__':
-    # Get the port from environment variable, default to 5000 if not set
-    port = int(os.environ.get('PORT', 5000))
+    # Ensure Flask is in the correct environment (development or production)
+    if os.environ.get('FLASK_ENV') == 'development':
+        app.config['DEBUG'] = True
+    else:
+        app.config['DEBUG'] = False  # Disable debug in production
+
+    port = int(os.environ.get('PORT', 5000))  # Default to 5000 if PORT isn't set
     
-    # Run the app, listening on all network interfaces (0.0.0.0) for external requests
-    app.run(host='0.0.0.0', port=port, debug=True, ssl_context=None)
+    # Run the app
+    app.run(host='0.0.0.0', port=port, debug=app.config['DEBUG'], ssl_context=None)
