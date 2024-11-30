@@ -27,12 +27,3 @@ migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
-
-# Add the PostgreSQL connection here using psycopg2
-connection = psycopg2.connect(
-    host="dpg-ct575fqlqhvc73a7c7a0-a",  # Hostname from Render
-    port="5432",  # Default PostgreSQL port
-    dbname="celebrationboard",  # Database name
-    user="celebrationboard_user",  # Username
-    password=os.environ.get('DB_PASSWORD')  # Make sure to set password in .env
-)
