@@ -27,10 +27,6 @@ migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
-mail = Mail(app)
-
-# Initialize session for MFA
-app.config['SESSION_TYPE'] = 'filesystem'
 
 # Add the PostgreSQL connection here using psycopg2
 connection = psycopg2.connect(
