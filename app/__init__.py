@@ -1,11 +1,9 @@
 import os
-from flask import Flask, session
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from dotenv import load_dotenv
-from flask_mail import Mail
 from flask_migrate import Migrate
-import psycopg2
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,3 +25,15 @@ migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
+
+# Import models for user_loader
+from app.models import User
+from app import routes
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Ensure tables are created
+with app.app_context():
+    db.create_all()
