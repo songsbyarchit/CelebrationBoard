@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from dotenv import load_dotenv
 from flask_migrate import Migrate
+from werkzeug.security import generate_password_hash
 
 # Load environment variables from .env file
 load_dotenv()
@@ -37,3 +38,22 @@ def load_user(user_id):
 # Ensure tables are created
 with app.app_context():
     db.create_all()
+    
+    # Check if the admin exists
+    admin = User.query.filter_by(username='admin').first()
+    
+    if admin is None:  # If no admin user exists
+        # Create an admin user
+        admin = User(
+            username='admin',
+            email=os.environ.get('SUPER_ADMIN_EMAIL'),  # Assuming SUPER_ADMIN_EMAIL is set in .env
+            department='Administration',
+            job_title='Admin',
+            password_hash=generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'defaultpassword')),  # Use a default password if none set
+            is_admin=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("Admin user created!")
+    else:
+        print("Admin user already exists!")
