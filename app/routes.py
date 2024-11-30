@@ -188,7 +188,7 @@ def delete_post(post_id):
             # Create notification for the post owner
             notification = Notification(
                 user_id=post.author.id,
-                content=f'Your post "{post.title}" was deleted by an admin. Reason: {reason}',
+                content=f'An admin deleted your post "{post.title}". Reason: {reason}',
                 notification_type='post_deletion'
             )
             db.session.add(notification)
@@ -284,37 +284,48 @@ def admin_manage():
 @login_required
 def toggle_admin(user_id):
     try:
-        # Ensure only super admin can toggle admin status
         if current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
             flash('Only super admin can modify admin status')
             return redirect(url_for('home'))
 
-        # Fetch the target user
         user = User.query.get_or_404(user_id)
 
-        # Prevent modifying the super admin's own status
         if user.email == os.environ.get('SUPER_ADMIN_EMAIL'):
             flash('Cannot modify super admin status')
             return redirect(url_for('admin_manage'))
 
-        # Toggle admin status
+        was_admin = user.is_admin
         user.is_admin = not user.is_admin
         user.promoted_by_id = current_user.id if user.is_admin else None
 
-        # Log the action
         log = AdminLog(
             admin_id=current_user.id,
             action=f"{'Promoted to' if user.is_admin else 'Removed from'} admin",
             details=f"User affected: {user.username}"
         )
-        db.session.add(log)  # Add log to the database session
-        db.session.commit()  # Commit both the user and the log changes
+        db.session.add(log)
 
-        # Feedback to the user
+        if user.is_admin and not was_admin:
+            notification = Notification(
+                user_id=user.id,
+                content=f"You have been promoted to admin by {current_user.username}",
+                is_read=False
+            )
+            db.session.add(notification)
+        elif not user.is_admin and was_admin:
+            notification = Notification(
+                user_id=user.id,
+                content=f"You have been removed from admin by {current_user.username}",
+                is_read=False
+            )
+            db.session.add(notification)
+
+        db.session.commit()
+
         flash(f"User {user.username} {'promoted to' if user.is_admin else 'removed from'} admin role")
         return redirect(url_for('admin_manage'))
 
     except Exception as e:
-        db.session.rollback()  # Rollback on error to maintain database integrity
+        db.session.rollback()
         flash(f"An error occurred: {str(e)}")
         return redirect(url_for('admin_manage'))

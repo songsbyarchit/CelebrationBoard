@@ -51,7 +51,7 @@ class Post(db.Model):
     likes = db.relationship('Like', backref='post', lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
-        return f'<Post {self.title}>'    #helps with debugging later
+        return f'<Post {self.title}>'
 
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
