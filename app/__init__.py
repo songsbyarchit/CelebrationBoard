@@ -30,10 +30,13 @@ from app import routes
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Move this below app initialization
 @app.before_first_request
 def before_first_request():
+    with app.test_request_context():
+        logout_user()
+
     admin = User.query.filter_by(username='admin').first()
-    
     if admin is None:
         admin = User(
             username='admin',
@@ -48,12 +51,6 @@ def before_first_request():
         print("Admin user created!")
     else:
         print("Admin user already exists!")
-
-    # Add logout_user here but after ensuring a valid request context
-    @app.after_request
-    def after_request(response):
-        logout_user()
-        return response
 
 if __name__ == '__main__':
     app.run(debug=True)
