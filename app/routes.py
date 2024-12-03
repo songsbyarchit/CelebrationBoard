@@ -12,22 +12,21 @@ import uuid
 @login_required
 def home():
     form = CommentForm()
-    filter_form = FilterForm(request.args)  # Initialize with request args
+    filter_form = FilterForm(request.args)
     
-    # Get base query
     query = Post.query
     
-    # Apply department filter
+    # department filter
     if filter_form.department.data and filter_form.department.data != '':
         query = query.join(User).filter(User.department == filter_form.department.data)
     
-    # Apply search filter
+    # search filter
     if filter_form.search.data:
         search = f"%{filter_form.search.data}%"
         query = query.filter((Post.title.like(search)) | (Post.content.like(search)))
     
-    # Apply sorting
-    sort_by = filter_form.sort_by.data or 'date_desc'  # Default to newest
+    # apply sorting of posts
+    sort_by = filter_form.sort_by.data or 'date_desc'  # default to newest first
     if sort_by == 'date_desc':
         query = query.order_by(Post.date_posted.desc())
     elif sort_by == 'date_asc':
@@ -50,7 +49,7 @@ def login():
     form = LoginForm()    #create form instance
     if form.validate_on_submit():    #handles POST request and validation
         user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):    #securely verify password against stored hash
+        if user and user.check_password(form.password.data):    #securely verify password vs stored hash
             login_user(user)    #log in the user
             flash('Successfully logged in!')    # Add success message
             next_page = request.args.get('next')    #get page they were trying to access
@@ -116,18 +115,18 @@ def create_post():
                 flash('Invalid file type. Only the following types are allowed: png, jpg, jpeg, gif, pdf, doc, docx.')
                 return redirect(request.url)
 
-            # Generate a secure and unique filename
+            # generate secure, unique filename
             unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-            # Ensure the upload folder exists
+            # ensure the upload folder still exists!
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            # Save the file
+            # save upoaded file
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
             
-            # Update file path and filename for the database
+            # update file path & filename for the database
             file_filename = unique_filename
             file_path = f"uploads/{unique_filename}"
 
-        # Create the post object
+        # ceate post object
         post = Post(
             title=form.title.data,
             content=form.content.data,
@@ -156,7 +155,7 @@ def edit_post(post_id):
         post.content = form.content.data
         
         if form.file.data:
-            # Handle new file upload
+            #  new file upload handling
             file = form.file.data
             filename = secure_filename(file.filename)
             file_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
@@ -168,7 +167,7 @@ def edit_post(post_id):
         flash('Your post has been updated!')
         return redirect(url_for('home'))
     
-    # Pre-populate form with existing data
+    # prepopulate form with data from pre-edit
     elif request.method == 'GET':
         form.title.data = post.title
         form.content.data = post.content
@@ -185,7 +184,7 @@ def delete_post(post_id):
     if current_user.is_admin or post.author == current_user:
         reason = request.form.get('delete_reason')
         if current_user.is_admin and current_user != post.author:
-            # Create notification for the post owner
+            # create notif to be sent to person who wrote post
             notification = Notification(
                 user_id=post.author.id,
                 content=f'An admin deleted your post "{post.title}". Reason: {reason}',
@@ -214,8 +213,8 @@ def add_comment(post_id):
         db.session.add(comment)
         db.session.commit()
         
-        # Add notification for the post author, but not if the user is the author of the post
-        if post.author != current_user:  # Only notify if the user is not the post author
+        # add notif for post author but not if user is himself the author of the post (only notify if the user is not the post author)
+        if post.author != current_user:
             notification = Notification(
                 user_id=post.author.id,
                 content=f"{current_user.username} commented on your post: \"{post.title}\"",
@@ -243,12 +242,12 @@ def like_post(post_id):
     
     db.session.commit()
 
-    # Add notification for the post author, but not if the user liked their own post
-    if like and post.author != current_user:  # Only notify if the user is not the post author
+    # add notif to be sent to post author but not if the user liked their own post (only notify if like is from someone else)
+    if like and post.author != current_user:
         notification = Notification(
             user_id=post.author.id,
             content=f"{current_user.username} liked your post: \"{post.title}\"",
-            notification_type='like',  # Specify the type
+            notification_type='like',  # specify notif type to keep variables up to date for when sent later
             is_read=False
         )
         db.session.add(notification)
@@ -259,11 +258,11 @@ def like_post(post_id):
 @app.route('/notifications')
 @login_required
 def notifications():
-    # Get all notifications, both read and unread
+    # get ALL notifications (read and unread)
     notifications = Notification.query.filter_by(user_id=current_user.id)\
                                    .order_by(Notification.timestamp.desc())\
                                    .all()
-    # Mark unread ones as read
+    # mark unread ones as read
     unread = Notification.query.filter_by(user_id=current_user.id, is_read=False).all()
     for notification in unread:
         notification.is_read = True
