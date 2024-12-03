@@ -81,6 +81,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% endif %} 
 
             {% if post.comments|length > 3 %}
             <button class="btn-show-comments" onclick="toggleComments({{ post.id }})">
