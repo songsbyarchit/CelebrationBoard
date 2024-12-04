@@ -2,7 +2,7 @@
 
 ## ADMIN LOGIN
 
-Admin user is already spun up and added to database.
+Super admin user is already spun up and added to database.
 
 His username/password are stored in .env but here they are for ease of use. in production, obviously they
 wouldn't be shared here!
@@ -53,3 +53,7 @@ An application built using Flask. It recognises employee achievements. The tool 
 1. Clone the repository to your local machine:
    ```bash
    git clone https://github.com/songsbyarchit/CelebrationBoard.git
+
+## SSH key
+
+My SSH key is linked and I'm adding this info simply to make a commit to see if all works well!
