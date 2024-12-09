@@ -6,12 +6,12 @@ from dotenv import load_dotenv
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash
 
-#pull in environment variables
+# Pull in environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
-#config default values to be used during app's runtime
+# Config default values to be used during app's runtime
 app.config['SUPER_ADMIN_EMAIL'] = os.environ.get('SUPER_ADMIN_EMAIL')
 app.config['UPLOAD_FOLDER'] = 'app/static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
@@ -19,14 +19,14 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', '
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'postgresql://cel_board_db_user:8ETS9zWqSiBjgtzaocl45CAeSzM6Du2B@dpg-ct5nqrg8fa8c73bvu7g0-a.oregon-postgres.render.com/cel_board_db'
 
-#initialisethe database
+# Initialise the database
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
-#import necessary things to set super admin up etc
+# Import necessary things to set up routes and models
 from app.models import User
 from app import routes
 
@@ -34,26 +34,28 @@ from app import routes
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-@app.before_first_request
-def before_first_request():
-    with app.test_request_context():
-        logout_user()
+@app.before_request
+def before_request():
+    if not hasattr(app, "has_run_first_request"):
+        app.has_run_first_request = True
+        with app.test_request_context():
+            logout_user()
 
-    admin = User.query.filter_by(username='admin').first()
-    if admin is None:
-        admin = User(
-            username='admin',
-            email=os.environ.get('SUPER_ADMIN_EMAIL'),
-            department='engineering',
-            job_title='System Admin',
-            password_hash=generate_password_hash(os.environ.get('ADMIN_PASSWORD')),
-            is_admin=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("Admin user created!")
-    else:
-        print("Admin user already exists!")
+        admin = User.query.filter_by(username='admin').first()
+        if admin is None:
+            admin = User(
+                username='admin',
+                email=os.environ.get('SUPER_ADMIN_EMAIL'),
+                department='engineering',
+                job_title='System Admin',
+                password_hash=generate_password_hash(os.environ.get('ADMIN_PASSWORD')),
+                is_admin=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Admin user created!")
+        else:
+            print("Admin user already exists!")
 
 if __name__ == '__main__':
     app.run(debug=True)
