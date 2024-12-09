@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash    #fo
 from flask_login import UserMixin    #add login functionality to User model
 from datetime import datetime
 
+#db model defining a user
 class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     id = db.Column(db.Integer, primary_key=True)    #basic model w/o security for now
     username = db.Column(db.String(80), unique=True, nullable=False)  #username must be unique
@@ -28,6 +29,7 @@ class User(db.Model, UserMixin):    #inherit from UserMixin for login support
     def __repr__(self):
         return f'<User {self.username}>'
 
+#db model defining what's tracked/stored in the admin log
 class AdminLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -38,6 +40,7 @@ class AdminLog(db.Model):
     def __repr__(self):
         return f'<AdminLog action={self.action} admin_id={self.admin_id}>'
 
+#db model defining a post
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)    #unique id for each post
     title = db.Column(db.String(100), nullable=False)    #celebration title/headline
@@ -53,6 +56,7 @@ class Post(db.Model):
     def __repr__(self):
         return f'<Post {self.title}>'
 
+#db model defining a comment
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
@@ -62,7 +66,8 @@ class Comment(db.Model):
 
     def __repr__(self):
         return f'<Comment {self.content[:20]}...>'
-    
+
+#db model defining the things tracked when a post is deleted
 class PostDeletion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     post_title = db.Column(db.String(100))  # Store post title for reference
@@ -73,6 +78,7 @@ class PostDeletion(db.Model):
     admin = db.relationship('User', foreign_keys=[admin_id])
     user = db.relationship('User', foreign_keys=[user_id])
 
+#db model defining a "notification"
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -81,6 +87,7 @@ class Notification(db.Model):
     is_read = db.Column(db.Boolean, default=False)
     notification_type = db.Column(db.String(50), nullable=False, default='generic')
 
+#db model defining a "like"
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)

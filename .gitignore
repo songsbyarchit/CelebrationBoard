@@ -14,10 +14,6 @@ __pycache__/
 *.sqlite3
 instance/
 
-# File uploads
-app/static/uploads/
-uploads/
-
 # Environment variables
 .env
 .flaskenv

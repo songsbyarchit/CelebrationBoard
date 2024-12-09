@@ -22,8 +22,12 @@ def home():
     
     # search filter
     if filter_form.search.data:
-        search = f"%{filter_form.search.data}%"
-        query = query.filter((Post.title.like(search)) | (Post.content.like(search)))
+        search_term = filter_form.search.data.strip()
+        if len(search_term) > 50:
+            flash('Search query too long.', 'error')
+            return redirect(url_for('home'))
+        search = f"%{search_term}%"
+        query = query.filter((Post.title.ilike(search)) | (Post.content.ilike(search)))
     
     # apply sorting of posts
     sort_by = filter_form.sort_by.data or 'date_desc'  # default to newest first
@@ -262,7 +266,7 @@ def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id)\
                                    .order_by(Notification.timestamp.desc())\
                                    .all()
-    # mark unread ones as read
+    # mark unread ones as read since the page has been clicked on
     unread = Notification.query.filter_by(user_id=current_user.id, is_read=False).all()
     for notification in unread:
         notification.is_read = True

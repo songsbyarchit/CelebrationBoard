@@ -5,14 +5,14 @@
     {{ form.hidden_tag() }} <!-- adds CSRF protection token -->
     <div>
         <label>Username</label>
-        {{ form.username(size=32) }} <!-- replaces your input with form field -->
+        {{ form.username(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
         {% for error in form.username.errors %} <!-- show validation errors -->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}
     </div>
     <div>
         <label>Email</label>
-        {{ form.email(size=32) }} <!-- replaces your input with form field -->
+        {{ form.email(size=32) }} <!-- rreplaces user input w/ WTF form standardised field -->
         {% for error in form.email.errors %} <!-- show validation errors -->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}
@@ -26,21 +26,21 @@
     </div>
     <div>
         <label>Job Title</label>
-        {{ form.job_title(size=32) }} <!-- replaces your input with form field -->
+        {{ form.job_title(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
         {% for error in form.job_title.errors %} <!-- show validation errors -->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}
     </div>
     <div>
         <label>Password</label>
-        {{ form.password(size=32) }} <!-- replaces your input with form field -->
+        {{ form.password(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
         {% for error in form.password.errors %} <!-- show validation errors -->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}
     </div>
     <div>
         <label>Confirm Password</label>
-        {{ form.confirm_password(size=32) }} <!-- replaces your input with form field -->
+        {{ form.confirm_password(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
         {% for error in form.confirm_password.errors %} <!-- show validation errors -->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}

@@ -4,6 +4,7 @@ from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAr
 from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
 from app.models import User    #for custom validation
 
+#file size checking class
 class FileSize(object):
     def __init__(self, max_size):
         self.max_size = max_size
@@ -15,6 +16,7 @@ class FileSize(object):
             if file_size > self.max_size:
                 raise ValidationError(f'File size must be less than {self.max_size}MB')
 
+#login form
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])    #required field
     password = PasswordField('Password', validators=[DataRequired()])    #required field
@@ -67,7 +69,8 @@ class RegistrationForm(FlaskForm):
         user = User.query.filter_by(email=email.data).first()
         if user:
             raise ValidationError('Email already registered! Please use another one.')
-        
+    
+#form for making a celebration board post
 class PostForm(FlaskForm):
     title = StringField('Title', 
                        validators=[
@@ -89,6 +92,7 @@ class PostForm(FlaskForm):
     
     submit = SubmitField('Share Celebration')
 
+#form for writing a comment below  apost
 class CommentForm(FlaskForm):
     content = TextAreaField('Comment', 
                           validators=[
@@ -97,6 +101,7 @@ class CommentForm(FlaskForm):
                           ])
     submit = SubmitField('Post Comment')
 
+#form for filtering the posts by department/oldest/newest/most/least likes etc
 class FilterForm(FlaskForm):
     department = SelectField('Department', choices=[
         ('', 'All Departments'),
