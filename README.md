@@ -12,45 +12,44 @@ wouldn't be shared here!
 
 ## Built using + Purpose
 
-An application built using Flask. It recognises employee achievements. The tool creates a positive and inclusive workplace. It helps boost morale through shared accomplishments.
+This app was build using using Flask. It recognises employee achievementto help boost morale within Cisco by sharing accomplishments.
 
 ## Current features
 
-- The application includes secure user authentication.
-- Users register with their work credentials.
-- The system uses role-based access management.
-- Passwords are securely hashed before storage.
-- Notifications are sent to users when their posts are deleted by an admin.
+- The application has secure user authentication (for login/register)
+- Users can register with their work credentials
+- The system has role-based access (user, admins and superadmins)
+- Passwords are securely hashed (using SHA256) before storing them
+- Notifications are sent to users when their posts are deleted by an admin, stating the reason of post deletion
 
 ### Security Features
 
-- Password hashing is implemented using Werkzeug.
-- Sessions are managed securely through Flask-Login.
-- Forms are protected with WTForms and CSRF.
-- Input validation is thorough.
-- Routes are restricted to authorised users.
+- Password hashing uses Werkzeug
+- Flask-Login is used to effectively manage sessions
+- Forms are protected using WTForms and CSRF
+- Inputs are thoroughly validated to ensure no SQL injections
+- Routes are restricted to authorised users (using @login_required decorators etc)
 
 ### User registration system
 
-- The registration process requires several details:
-  - Unique username (4-20 characters long).
-  - Corporate email address.
-  - Department selection.
-  - Current job title.
-  - Passwords meeting security standards.
+- The registration process requires:
+  - a Unique username (4-20 characters long)
+  - a valid email address
+  - Department selection (from dropdown menu)
+  - Current job title
+  - Passwords meeting security standards (8 characters, at least one lowercase, at least one uppercase, at least one special character)
 
-### Password Requirements
+  ### Render Integration
 
-- Each password must meet specific criteria:
-  - Must have at least eight characters.
-  - At least one letter must be uppercase.
-  - Must include a number.
-  - At least one special character is required.
-  - The username cannot appear in the password.
+- Render hosts the PostgreSQL database, ensuring secure and reliable data storage  
+- Database credentials are securely stored using environment variables  
+- Deployments are automated through Render’s integration with GitHub  
+- Builds are triggered directly from GitHub commits  
+- Application logs and errors are monitored through Render's in-built dashboard  
 
 ## Installation
 
-1. Clone the repository to your local machine:
+1. Clone the repo to your local machine if you would like to run/help with the building of it there!
    ```bash
    git clone https://github.com/songsbyarchit/CelebrationBoard.git
 

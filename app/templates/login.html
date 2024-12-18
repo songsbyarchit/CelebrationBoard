@@ -5,15 +5,15 @@
     {{ form.hidden_tag() }}
     <div>
         <label>Username</label>
-        {{ form.username(size=32) }} <!-- replaces your input with form field -->
-        {% for error in form.username.errors %} <!-- show validation errors -->
+        {{ form.username(size=32) }} <!-- replaces input w/ form field -->
+        {% for error in form.username.errors %} <!-- show validation errors to user-->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}
     </div>
     <div>
         <label>Password</label>
-        {{ form.password(size=32) }} <!-- replaces your input with form field -->
-        {% for error in form.password.errors %} <!-- show validation errors -->
+        {{ form.password(size=32) }} <!-- replaces input w/ form field -->
+        {% for error in form.password.errors %} <!-- show validation errors to user -->
         <span style="color: red;">{{ error }}</span>
         {% endfor %}
     </div>

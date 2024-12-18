@@ -7,6 +7,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
 import os
 import uuid
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
 @app.route('/', methods=['GET'])
 @login_required
@@ -108,29 +109,37 @@ def allowed_file(filename):
 @login_required
 def create_post():
     form = PostForm()
+
     if form.validate_on_submit():
         file_path = None
         file_filename = None
-        
+
+        # Check title length
+        if len(form.title.data) < 4:
+            flash('Please lengthen this text to 4 characters or more', 'error')
+            return render_template('create_post.html', form=form)
+
         if form.file.data:
             file = form.file.data
-            # Validate the file type
+
+            # File type check
             if not allowed_file(file.filename):
                 flash('Invalid file type. Only the following types are allowed: png, jpg, jpeg, gif, pdf, doc, docx.')
-                return redirect(request.url)
+                return render_template('create_post.html', form=form)  # Render with the form and errors
 
-            # generate secure, unique filename
+            # File size check
+            if file.content_length > MAX_FILE_SIZE:  # Use content_length to check file size
+                flash('File size must be less than 10MB')
+                return render_template('create_post.html', form=form)
+
+            # Generate unique filename
             unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-            # ensure the upload folder still exists!
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            # save upoaded file
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
             
-            # update file path & filename for the database
             file_filename = unique_filename
             file_path = f"uploads/{unique_filename}"
 
-        # ceate post object
         post = Post(
             title=form.title.data,
             content=form.content.data,
@@ -142,6 +151,7 @@ def create_post():
         db.session.commit()
         flash('Your celebration has been shared!')
         return redirect(url_for('home'))
+
     return render_template('create_post.html', form=form)
 
 @app.route("/post/<int:post_id>/edit", methods=['GET', 'POST'])

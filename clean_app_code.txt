@@ -1,0 +1,1369 @@
+from flask import render_template, redirect, url_for, flash, request
+from werkzeug.utils import secure_filename
+from app import app, db
+from app.models import User, Post, Notification, Comment, Like, AdminLog
+from app.forms import LoginForm, RegistrationForm, PostForm, CommentForm, FilterForm
+from flask_login import login_user, logout_user, login_required, current_user
+from datetime import datetime
+import os
+import uuid
+
+@app.route('/', methods=['GET'])
+@login_required
+def home():
+    form = CommentForm()
+    filter_form = FilterForm(request.args)
+    
+    query = Post.query
+    
+    # department filter
+    if filter_form.department.data and filter_form.department.data != '':
+        query = query.join(User).filter(User.department == filter_form.department.data)
+    
+    # search filter
+    if filter_form.search.data:
+        search_term = filter_form.search.data.strip()
+        if len(search_term) > 50:
+            flash('Search query too long.', 'error')
+            return redirect(url_for('home'))
+        search = f"%{search_term}%"
+        query = query.filter((Post.title.ilike(search)) | (Post.content.ilike(search)))
+    
+    # apply sorting of posts
+    sort_by = filter_form.sort_by.data or 'date_desc'  # default to newest first
+    if sort_by == 'date_desc':
+        query = query.order_by(Post.date_posted.desc())
+    elif sort_by == 'date_asc':
+        query = query.order_by(Post.date_posted.asc())
+    elif sort_by == 'likes':
+        query = query.outerjoin(Like)\
+                    .group_by(Post.id)\
+                    .order_by(db.func.count(Like.id).desc(), Post.date_posted.desc())
+    else:
+        query = query.order_by(Post.date_posted.desc())
+    
+    posts = query.all()
+    return render_template('index.html', posts=posts, form=form, filter_form=filter_form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:    #redirect if already logged in
+        return redirect(url_for('home'))
+        
+    form = LoginForm()    #create form instance
+    if form.validate_on_submit():    #handles POST request and validation
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):    #securely verify password vs stored hash
+            login_user(user)    #log in the user
+            flash('Successfully logged in!')    # Add success message
+            next_page = request.args.get('next')    #get page they were trying to access
+            return redirect(next_page if next_page else url_for('home'))
+        else:
+            flash('Invalid username or password')    #dont tell them which was wrong
+            return render_template('login.html', form=form)    # Return to form with data
+    
+    if form.errors:    # Add validation error messages
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{field}: {error}')
+    
+    return render_template('login.html', form=form)    #pass form to template
+
+@app.route('/logout')    #add logout functionality
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+        
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        # Check if email matches SUPER_ADMIN_EMAIL from .env
+        is_admin = form.email.data == app.config['SUPER_ADMIN_EMAIL']
+        
+        user = User(
+            username=form.username.data,
+            email=form.email.data,
+            department=form.department.data,
+            job_title=form.job_title.data,
+            is_admin=is_admin  # Set admin status based on superadmin email
+        )
+        user.set_password(form.password.data)
+        
+        db.session.add(user)
+        db.session.commit()
+
+        flash('Registration successful! Please login.')
+        return redirect(url_for('login'))
+
+    return render_template('register.html', form=form)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+@app.route('/create_post', methods=['GET', 'POST'])
+@login_required
+def create_post():
+    form = PostForm()
+    if form.validate_on_submit():
+        file_path = None
+        file_filename = None
+        
+        if form.file.data:
+            file = form.file.data
+            # Validate the file type
+            if not allowed_file(file.filename):
+                flash('Invalid file type. Only the following types are allowed: png, jpg, jpeg, gif, pdf, doc, docx.')
+                return redirect(request.url)
+
+            # generate secure, unique filename
+            unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+            # ensure the upload folder still exists!
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            # save upoaded file
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+            
+            # update file path & filename for the database
+            file_filename = unique_filename
+            file_path = f"uploads/{unique_filename}"
+
+        # ceate post object
+        post = Post(
+            title=form.title.data,
+            content=form.content.data,
+            author=current_user,
+            file_filename=file_filename,
+            file_path=file_path
+        )
+        db.session.add(post)
+        db.session.commit()
+        flash('Your celebration has been shared!')
+        return redirect(url_for('home'))
+    return render_template('create_post.html', form=form)
+
+@app.route("/post/<int:post_id>/edit", methods=['GET', 'POST'])
+@login_required
+def edit_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.author != current_user:
+        flash('You can only edit your own posts!')
+        return redirect(url_for('home'))
+    
+    form = PostForm()
+    
+    if form.validate_on_submit():
+        post.title = form.title.data
+        post.content = form.content.data
+        
+        if form.file.data:
+            #  new file upload handling
+            file = form.file.data
+            filename = secure_filename(file.filename)
+            file_filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_filename))
+            post.file_filename = file_filename
+            post.file_path = f"uploads/{file_filename}"
+            
+        db.session.commit()
+        flash('Your post has been updated!')
+        return redirect(url_for('home'))
+    
+    # prepopulate form with data from pre-edit
+    elif request.method == 'GET':
+        form.title.data = post.title
+        form.content.data = post.content
+    
+    return render_template('create_post.html', 
+                         title='Edit Post', 
+                         form=form, 
+                         legend='Edit Post')
+
+@app.route("/post/<int:post_id>/delete", methods=['POST'])
+@login_required
+def delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if current_user.is_admin or post.author == current_user:
+        reason = request.form.get('delete_reason')
+        if current_user.is_admin and current_user != post.author:
+            # create notif to be sent to person who wrote post
+            notification = Notification(
+                user_id=post.author.id,
+                content=f'An admin deleted your post "{post.title}". Reason: {reason}',
+                notification_type='post_deletion'
+            )
+            db.session.add(notification)
+            flash(f'Post deleted and notification sent to user.')
+        
+        db.session.delete(post)
+        db.session.commit()
+        
+    return redirect(url_for('home'))
+
+@app.route("/post/<int:post_id>/comment", methods=['POST'])
+@login_required
+def add_comment(post_id):
+    post = Post.query.get_or_404(post_id)
+    form = CommentForm()
+    
+    if form.validate_on_submit():
+        comment = Comment(
+            content=form.content.data,
+            post_id=post_id,
+            author=current_user
+        )
+        db.session.add(comment)
+        db.session.commit()
+        
+        # add notif for post author but not if user is himself the author of the post (only notify if the user is not the post author)
+        if post.author != current_user:
+            notification = Notification(
+                user_id=post.author.id,
+                content=f"{current_user.username} commented on your post: \"{post.title}\"",
+                notification_type='comment',
+                is_read=False
+            )
+            db.session.add(notification)
+            db.session.commit()
+        
+        flash('Your comment has been added!')
+    
+    return redirect(url_for('home'))
+
+@app.route('/post/<int:post_id>/like', methods=['POST'])
+@login_required
+def like_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+    
+    if like:
+        db.session.delete(like)
+    else:
+        like = Like(user_id=current_user.id, post_id=post_id)
+        db.session.add(like)
+    
+    db.session.commit()
+
+    # add notif to be sent to post author but not if the user liked their own post (only notify if like is from someone else)
+    if like and post.author != current_user:
+        notification = Notification(
+            user_id=post.author.id,
+            content=f"{current_user.username} liked your post: \"{post.title}\"",
+            notification_type='like',  # specify notif type to keep variables up to date for when sent later
+            is_read=False
+        )
+        db.session.add(notification)
+        db.session.commit()
+
+    return redirect(url_for('home'))
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    # get ALL notifications (read and unread)
+    notifications = Notification.query.filter_by(user_id=current_user.id)\
+                                   .order_by(Notification.timestamp.desc())\
+                                   .all()
+    # mark unread ones as read since the page has been clicked on
+    unread = Notification.query.filter_by(user_id=current_user.id, is_read=False).all()
+    for notification in unread:
+        notification.is_read = True
+    db.session.commit()
+    return render_template('notifications.html', notifications=notifications)
+
+@app.route('/admin/manage', methods=['GET'])
+@login_required
+def admin_manage():
+    if not current_user.is_admin and current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
+        flash('Access denied')
+        return redirect(url_for('home'))
+    
+    users = User.query.all()
+    return render_template('admin_manage.html', users=users, super_admin_email=os.environ.get('SUPER_ADMIN_EMAIL'))
+
+@app.route('/admin/toggle/<int:user_id>', methods=['POST'])
+@login_required
+def toggle_admin(user_id):
+    try:
+        if current_user.email != os.environ.get('SUPER_ADMIN_EMAIL'):
+            flash('Only super admin can modify admin status')
+            return redirect(url_for('home'))
+
+        user = User.query.get_or_404(user_id)
+
+        if user.email == os.environ.get('SUPER_ADMIN_EMAIL'):
+            flash('Cannot modify super admin status')
+            return redirect(url_for('admin_manage'))
+
+        was_admin = user.is_admin
+        user.is_admin = not user.is_admin
+        user.promoted_by_id = current_user.id if user.is_admin else None
+
+        log = AdminLog(
+            admin_id=current_user.id,
+            action=f"{'Promoted to' if user.is_admin else 'Removed from'} admin",
+            details=f"User affected: {user.username}"
+        )
+        db.session.add(log)
+
+        if user.is_admin and not was_admin:
+            notification = Notification(
+                user_id=user.id,
+                content=f"You have been promoted to admin by {current_user.username}",
+                is_read=False
+            )
+            db.session.add(notification)
+        elif not user.is_admin and was_admin:
+            notification = Notification(
+                user_id=user.id,
+                content=f"You have been removed from admin by {current_user.username}",
+                is_read=False
+            )
+            db.session.add(notification)
+
+        db.session.commit()
+
+        flash(f"User {user.username} {'promoted to' if user.is_admin else 'removed from'} admin role")
+        return redirect(url_for('admin_manage'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"An error occurred: {str(e)}")
+        return redirect(url_for('admin_manage'))from app import db
+from werkzeug.security import generate_password_hash, check_password_hash    #for password hashing
+from flask_login import UserMixin    #add login functionality to User model
+from datetime import datetime
+
+#db model defining a user
+class User(db.Model, UserMixin):    #inherit from UserMixin for login support
+    id = db.Column(db.Integer, primary_key=True)    #basic model w/o security for now
+    username = db.Column(db.String(80), unique=True, nullable=False)  #username must be unique
+    email = db.Column(db.String(120), unique=True, nullable=False)    #email must be unique
+    department = db.Column(db.String(50), nullable=False)    #required field
+    job_title = db.Column(db.String(100), nullable=False)    # required field
+    password_hash = db.Column(db.String(256), nullable=False)    #  store only hashed passwords, never plain text
+    posts = db.relationship('Post', backref='author', lazy=True)    #link to user's posts
+    comments = db.relationship('Comment', backref='author', lazy=True)    #link to user's comments
+    is_admin = db.Column(db.Boolean, default=False)    # false by default
+    promoted_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)    # Fixed syntax here
+    admin_action_logs = db.relationship('AdminLog', backref='admin', lazy=True)
+    notifications = db.relationship('Notification', backref='user', lazy=True,
+                                  order_by="desc(Notification.timestamp)")
+    likes = db.relationship('Like', backref='user', lazy=True)
+    
+    def set_password(self, password):    #method to hash password before storing
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):    #method to verify password via hash
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f'<User {self.username}>'
+
+#db model defining what's tracked/stored in the admin log
+class AdminLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    details = db.Column(db.Text)
+
+    def __repr__(self):
+        return f'<AdminLog action={self.action} admin_id={self.admin_id}>'
+
+#db model defining a post
+class Post(db.Model):
+    id = db.Column(db.Integer, primary_key=True)    #unique id for each post
+    title = db.Column(db.String(100), nullable=False)    #celebration title/headline
+    content = db.Column(db.Text, nullable=False)    #celebration description
+    date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)    #when it was posted
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)    #who posted it
+    file_filename = db.Column(db.String(255))    #store filename of uploaded file
+    file_path = db.Column(db.String(255))    #store path to uploaded file
+    comments = db.relationship('Comment', backref='post', lazy=True, 
+                             cascade='all, delete-orphan')    #link to comments
+    likes = db.relationship('Like', backref='post', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Post {self.title}>'
+
+#db model defining a comment
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+
+    def __repr__(self):
+        return f'<Comment {self.content[:20]}...>'
+
+#db model defining the things tracked when a post is deleted
+class PostDeletion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    post_title = db.Column(db.String(100))  # Store post title for reference
+    deleted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reason = db.Column(db.Text, nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Original post owner
+    admin = db.relationship('User', foreign_keys=[admin_id])
+    user = db.relationship('User', foreign_keys=[user_id])
+
+#db model defining a "notification"
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
+    notification_type = db.Column(db.String(50), nullable=False, default='generic')
+
+#db model defining a "like"
+class Like(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)from flask_wtf import FlaskForm    #secure form handling
+from flask_wtf.file import FileField, FileAllowed 
+from wtforms import StringField, PasswordField, SelectField, SubmitField, TextAreaField    #form fields
+from wtforms.validators import DataRequired, Email, Length, EqualTo, ValidationError, Regexp    #validators
+from app.models import User    #for custom validation
+
+#file size checking class
+class FileSize(object):
+    def __init__(self, max_size):
+        self.max_size = max_size
+
+    def __call__(self, form, field):
+        if field.data:
+            file_size = len(field.data.read()) / 1024 / 1024  # size in MB
+            field.data.seek(0)  # Reset file pointer
+            if file_size > self.max_size:
+                raise ValidationError(f'File size must be less than {self.max_size}MB')
+
+#login form
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])    #required field
+    password = PasswordField('Password', validators=[DataRequired()])    #required field
+    submit = SubmitField('Login')    #submit button
+
+class RegistrationForm(FlaskForm):
+    username = StringField('Username', 
+                         validators=[DataRequired(), Length(min=4, max=20)])
+    email = StringField('Email',
+                       validators=[DataRequired(), Email()])    #must be valid email
+    department = SelectField('Department', 
+                        choices=[
+                            ('', '--- Select Department ---'),  # Blank default option
+                            ('engineering', 'Engineering'),
+                            ('sales', 'Sales'),
+                            ('marketing', 'Marketing'),
+                            ('hr', 'HR'),
+                            ('finance', 'Finance')
+                        ],
+                        validators=[
+                            DataRequired(message='Please select your department')
+                        ],
+                        default='',    # Set blank as default
+                        coerce=str)    # Ensure proper string handling
+    job_title = StringField('Job Title', 
+                          validators=[DataRequired(), Length(max=100)])    #job title length limit
+    password = PasswordField('Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters! '),
+        Regexp(r'.*[A-Z]', message=' Password must contain at least one uppercase letter! '),
+        Regexp(r'.*[0-9]', message=' Password must contain at least one number! '),
+        Regexp(r'.*[!@#$%^&*(),.?":{}|<>]', message='Password must contain at least one special character! ')
+    ])
+    confirm_password = PasswordField('Confirm Password', 
+                               validators=[
+                                   DataRequired(), 
+                                   EqualTo('password', message='Both passwords must match!')
+                               ])
+
+    def validate_username(self, username):    #custom validation for unique username
+        user = User.query.filter_by(username=username.data).first()
+        if user:
+            raise ValidationError('Username already taken! Please choose another one.')
+
+    def validate_password(self, password):    #custom password validation
+        if self.username.data.lower() in password.data.lower():
+            raise ValidationError('Password cannot contain username')
+
+    def validate_email(self, email):    #custom validation for unique email
+        user = User.query.filter_by(email=email.data).first()
+        if user:
+            raise ValidationError('Email already registered! Please use another one.')
+    
+#form for making a celebration board post
+class PostForm(FlaskForm):
+    title = StringField('Title', 
+                       validators=[
+                           DataRequired(),
+                           Length(min=4, max=100)
+                       ])
+    content = TextAreaField('Content', 
+                          validators=[
+                              DataRequired(),
+                              Length(min=10, max=1000)
+                          ])
+    file = FileField('Attach File',
+                    validators=[
+                        FileAllowed(['jpg', 'png', 'gif', 'pdf', 'doc', 'docx'], 
+                                  'Only images and documents allowed!'),
+                        # Add a custom validator for file size
+                        FileSize(max_size=10) # size in MB
+                    ])
+    
+    submit = SubmitField('Share Celebration')
+
+#form for writing a comment below  apost
+class CommentForm(FlaskForm):
+    content = TextAreaField('Comment', 
+                          validators=[
+                              DataRequired(),
+                              Length(min=1, max=500, message='Comment must be between 1 and 500 characters')
+                          ])
+    submit = SubmitField('Post Comment')
+
+#form for filtering the posts by department/oldest/newest/most/least likes etc
+class FilterForm(FlaskForm):
+    department = SelectField('Department', choices=[
+        ('', 'All Departments'),
+        ('engineering', 'Engineering'),
+        ('sales', 'Sales'),
+        ('marketing', 'Marketing'),
+        ('hr', 'HR'),
+        ('finance', 'Finance')
+    ])
+    sort_by = SelectField('Sort by', choices=[
+        ('date_desc', 'Newest First'),
+        ('date_asc', 'Oldest First'),
+        ('likes', 'Most Liked'),
+        ('comments', 'Most Comments')
+    ])
+    search = StringField('Search posts')
+    submit = SubmitField('Apply Filters')from app import app
+import os
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=os.environ.get('FLASK_ENV') == 'production'){% extends "base.html" %}
+{% block content %}
+<div class="admin-panel">
+    <h1>Admin Management</h1>
+    <div class="admin-users">
+        {% for user in users %}
+        <div class="user-card">
+            <div class="user-info">
+                <strong>{{ user.username }}</strong>
+                <span class="email">{{ user.email }}</span>
+                <span class="department">{{ user.department }}</span>
+                <span class="status {% if user.is_admin %}admin{% endif %}">
+                    {{ 'Admin' if user.is_admin else 'User' }}
+                </span>
+            </div>
+            {% if user.email != super_admin_email %}
+            <div class="user-actions">
+                <form action="{{ url_for('toggle_admin', user_id=user.id) }}" method="POST">
+                    <button type="submit" class="btn-toggle-admin {% if user.is_admin %}remove{% endif %}"
+                        onclick="return confirm('Are you sure you want to {% if user.is_admin %}remove{% else %}add{% endif %} admin privileges?');">
+                        {{ 'Remove Admin' if user.is_admin else 'Make Admin' }}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Celebration Board</title>
+    <!-- no security headers yet -->
+    <style>
+        /* Basic reset and spacing */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        /* Navigation styling */
+        nav {
+            background-color: #f0f0f0;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        nav a {
+            margin-right: 15px;
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        nav a:hover {
+            background-color: #e0e0e0;
+            color: #000;
+        }
+
+        nav span {
+            color: #333;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+
+        /* Form styling */
+        form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        form div {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        /* Posts styling */
+        .posts {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .post-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-card h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.5em;
+        }
+
+        .post-info {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .post-info span {
+            margin-right: 15px;
+        }
+
+        .post-content {
+            line-height: 1.6;
+            margin: 15px 0;
+            color: #444;
+        }
+
+        .post-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 4px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-attachment {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .post-attachment a {
+            display: inline-flex;
+            align-items: center;
+            color: #4CAF50;
+            text-decoration: none;
+            padding: 5px 10px;
+        }
+
+        .post-attachment a:hover {
+            background: #eee;
+            border-radius: 4px;
+        }
+
+        .file-icon {
+            margin-right: 5px;
+        }
+
+        /* Post action buttons */
+        .post-actions {
+            margin-top: 10px;
+        }
+
+        .btn-edit,
+        .btn-delete {
+            padding: 5px 10px;
+            margin-right: 10px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+
+        .btn-edit {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+        }
+
+        .btn-edit:hover {
+            background-color: #45a049;
+        }
+
+        .btn-delete:hover {
+            background-color: #c82333;
+        }
+
+        .delete-form {
+            display: inline;
+        }
+
+        /* Button styling */
+        button,
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+            transition: background-color 0.2s;
+        }
+
+        button:hover,
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        /* Flash message styling */
+        .message {
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            color: #333;
+            max-width: 800px;
+            margin: 10px auto;
+            text-align: center;
+        }
+
+        /* Error message styling */
+        span[style="color: red;"] {
+            display: block;
+            font-size: 0.9em;
+            margin-top: 3px;
+            color: #dc3545;
+        }
+
+        /* Comments section styling */
+        .comments-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .comments-section h3 {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .comment {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .comment-info {
+            margin-bottom: 5px;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            color: #333;
+            margin-right: 10px;
+        }
+
+        .comment-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .comment-content {
+            color: #444;
+            line-height: 1.4;
+        }
+
+        .comment-form {
+            margin-top: 15px;
+        }
+
+        .comment-input {
+            margin-bottom: 10px;
+        }
+
+        .comment-input textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .btn-comment {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .btn-comment:hover {
+            background-color: #45a049;
+        }
+
+        .btn-show-comments {
+            background: none;
+            border: none;
+            color: #4CAF50;
+            padding: 5px 10px;
+            font-size: 0.9em;
+            cursor: pointer;
+            margin: 10px 0;
+            text-decoration: underline;
+        }
+
+        .btn-show-comments:hover {
+            color: #45a049;
+        }
+
+        .comments-expanded {
+            margin-top: 10px;
+        }
+
+        .notifications {
+            position: relative;
+            color: #333;
+        }
+
+        .notifications:hover {
+            color: #4CAF50;
+        }
+
+        .notifications-page {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .notification-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .notification-card.unread {
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+
+        .notification-content {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .notification-time {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .notification-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .notification-status {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .unread .notification-status {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .likes-section {
+            margin: 10px 0;
+        }
+
+        .btn-like {
+            background: none;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .btn-like.liked {
+            color: #e74c3c;
+        }
+
+        .btn-like:hover {
+            opacity: 0.8;
+        }
+
+        .filter-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .filter-form {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            flex: 1;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .filter-select,
+        .filter-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .filter-submit {
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .admin-panel {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .user-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .user-info .email {
+            color: #666;
+        }
+
+        .user-info .department {
+            background: #f0f0f0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .status {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .status.admin {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-toggle-admin {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-toggle-admin.remove {
+            background: #dc3545;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <a href="{{ url_for('home') }}">Home</a>
+        {% if current_user.is_authenticated %}
+        <!-- show the below links only to logged in users -->
+        <span>Welcome, {{ current_user.username }}!</span>
+        <a href="{{ url_for('create_post') }}">Share Celebration</a>
+        {% set unread = current_user.notifications|selectattr('is_read', 'equalto', false)|list|length %}
+        {% if unread >= 0 %}
+        <a href="{{ url_for('notifications') }}" class="notifications">
+            Notifications ({{ unread }})
+        </a>
+        {% if current_user.is_admin or current_user.email == config['SUPER_ADMIN_EMAIL'] %}
+        <a href="{{ url_for('admin_manage') }}">Admin Panel</a>
+        {% endif %}
+        {% endif %}
+        <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+        <!-- show the below links only to logged out users -->
+        <a href="{{ url_for('login') }}">Login</a>
+        <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
+    </nav>
+
+    <!-- show flash messages-->
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    {% for message in messages %}
+    <div class="message">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- main content goes here -->
+    {% block content %}{% endblock %}
+
+    <script>
+        function toggleComments(postId) {
+            const expandedComments = document.getElementById(`comments-expanded-${postId}`);
+            const button = expandedComments.previousElementSibling;
+
+            if (expandedComments.style.display === 'none') {
+                expandedComments.style.display = 'block';
+                button.textContent = 'Show Less';
+            } else {
+                expandedComments.style.display = 'none';
+                button.textContent = `Show All Comments (${expandedComments.getElementsByClassName('comment').length + 3})`;
+            }
+        }
+    </script>
+
+</body>
+
+</html>{% extends "base.html" %}
+{% block content %}
+<h1>Share a Celebration</h1>
+<form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+    <div>
+        <label>{{ form.title.label }}</label>
+        {{ form.title(size=32) }}
+        {% for error in form.title.errors %}
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>{{ form.content.label }}</label>
+        {{ form.content(rows=5, cols=50) }}
+        {% for error in form.content.errors %}
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>{{ form.file.label }}</label>
+        {{ form.file() }}
+        {% for error in form.file.errors %}
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    {{ form.submit(class="button") }}
+</form>
+{% endblock %}{% extends "base.html" %}
+{% block content %}
+<div class="posts">
+    <h1>Recent Celebrations</h1>
+    <div class="filter-section">
+        <form method="GET" class="filter-form">
+            {{ filter_form.csrf_token }}
+            <div class="filter-group">
+                {{ filter_form.department.label }}
+                {{ filter_form.department(class="filter-select") }}
+            </div>
+            <div class="filter-group">
+                {{ filter_form.sort_by.label }}
+                {{ filter_form.sort_by(class="filter-select") }}
+            </div>
+            <div class="filter-group">
+                {{ filter_form.search(placeholder="Search posts...", class="filter-input") }}
+            </div>
+            {{ filter_form.submit(class="filter-submit") }}
+        </form>
+    </div>
+    {% if posts %}
+    {% for post in posts %}
+    <div class="post-card">
+        <h2>{{ post.title }}</h2>
+        <div class="post-info">
+            <span>Posted by {{ post.author.username }}</span>
+            <span>{{ post.date_posted.strftime('%Y-%m-%d %H:%M') }}</span>
+
+            {% if post.author == current_user or current_user.is_admin %}
+            <div class="post-actions">
+                {% if post.author == current_user %}
+                <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn-edit">Edit</a>
+                {% endif %}
+                <form action="{{ url_for('delete_post', post_id=post.id) }}" method="POST" class="delete-form">
+                    {% if current_user.is_admin and post.author != current_user %}
+                    <input type="text" name="delete_reason" placeholder="Reason for deletion" required>
+                    {% endif %}
+                    <button type="submit" class="btn-delete"
+                        onclick="return confirm('Are you sure you want to delete this post?');">Delete</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        <div class="post-content">
+            {{ post.content }}
+        </div>
+        {% if post.file_filename %}
+        <div class="post-attachment">
+            {% if post.file_filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+            <img src="{{ url_for('static', filename='uploads/' + post.file_filename) }}" alt="Celebration Image"
+                class="post-image">
+            {% else %}
+            <a href="{{ url_for('static', filename='uploads/' + post.file_filename) }}" download>
+                <i class="file-icon">📎</i> Download {{ post.file_filename }}
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="likes-section">
+            <form class="like-form" action="{{ url_for('like_post', post_id=post.id) }}" method="POST">
+                {% set has_liked = current_user.id in post.likes|map(attribute='user_id')|list %}
+                <button type="submit" class="btn-like {{ 'liked' if has_liked else '' }}">
+                    ❤️ {{ post.likes|length }} likes
+                </button>
+            </form>
+        </div>
+        <div class="comments-section">
+            <h3>Comments ({{ post.comments|length }})</h3>
+            {% if post.comments %}
+            <div class="comments-container" id="comments-{{ post.id }}">
+                {% for comment in post.comments[-3:]|reverse %} <!-- Show last 3 comments -->
+                <div class="comment">
+                    <div class="comment-info">
+                        <span class="comment-author">{{ comment.author.username }}</span>
+                        <span class="comment-date">{{ comment.date_posted.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="comment-content">
+                        {{ comment.content }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %} 
+
+            {% if post.comments|length > 3 %}
+            <button class="btn-show-comments" onclick="toggleComments({{ post.id }})">
+                Show All Comments ({{ post.comments|length }})
+            </button>
+            <div class="comments-expanded" id="comments-expanded-{{ post.id }}" style="display: none;">
+                {% for comment in post.comments[:-3]|reverse %} <!-- All comments except last 3 -->
+                <div class="comment">
+                    <div class="comment-info">
+                        <span class="comment-author">{{ comment.author.username }}</span>
+                        <span class="comment-date">{{ comment.date_posted.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="comment-content">
+                        {{ comment.content }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}            
+
+            {% if current_user.is_authenticated %}
+            <form class="comment-form" action="{{ url_for('add_comment', post_id=post.id) }}" method="POST">
+                {{ form.hidden_tag() }}
+                <div class="comment-input">
+                    {{ form.content(placeholder="Write a comment...") }}
+                    {% for error in form.content.errors %}
+                    <span style="color: red;">{{ error }}</span>
+                    {% endfor %}
+                </div>
+                {{ form.submit(class="btn-comment") }}
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No celebrations posted yet. Be the first to share one!</p>
+    {% endif %}
+</div>
+{% endblock %}{% extends "base.html" %}
+{% block content %}
+<h1>Login</h1>
+<form method="POST">
+    {{ form.hidden_tag() }}
+    <div>
+        <label>Username</label>
+        {{ form.username(size=32) }} <!-- replaces input w/ form field -->
+        {% for error in form.username.errors %} <!-- show validation errors to user-->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>Password</label>
+        {{ form.password(size=32) }} <!-- replaces input w/ form field -->
+        {% for error in form.password.errors %} <!-- show validation errors to user -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    {{ form.submit(class="button") }}
+</form>
+<p>New user? <a href="{{ url_for('register') }}">Register here</a></p>
+{% endblock %}{% extends "base.html" %}
+{% block content %}
+<div class="notifications-page">
+    <h1>Your Notifications</h1>
+    {% if notifications %}
+    {% for notification in notifications %}
+    <div class="notification-card {% if not notification.is_read %}unread{% endif %}">
+        <div class="notification-content">
+            {{ notification.content }}
+        </div>
+        <div class="notification-info">
+            <span class="notification-time">{{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+            <span class="notification-status">{{ "New" if not notification.is_read else "Read" }}</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No notifications yet!</p>
+    {% endif %}
+</div>
+{% endblock %}{% extends "base.html" %}
+{% block content %}
+<h1>Register</h1>
+<form method="POST">
+    {{ form.hidden_tag() }} <!-- adds CSRF protection token -->
+    <div>
+        <label>Username</label>
+        {{ form.username(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
+        {% for error in form.username.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>Email</label>
+        {{ form.email(size=32) }} <!-- rreplaces user input w/ WTF form standardised field -->
+        {% for error in form.email.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>Department</label>
+        {{ form.department() }} <!-- replaces your select with form field -->
+        {% for error in form.department.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>Job Title</label>
+        {{ form.job_title(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
+        {% for error in form.job_title.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>Password</label>
+        {{ form.password(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
+        {% for error in form.password.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <div>
+        <label>Confirm Password</label>
+        {{ form.confirm_password(size=32) }} <!-- replaces user input w/ WTF form standardised field -->
+        {% for error in form.confirm_password.errors %} <!-- show validation errors -->
+        <span style="color: red;">{{ error }}</span>
+        {% endfor %}
+    </div>
+    <button type="submit">Register</button>
+</form>
+<p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+{% endblock %}
