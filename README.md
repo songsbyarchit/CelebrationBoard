@@ -8,7 +8,7 @@ His username/password are stored in .env but here they are for ease of use. in p
 wouldn't be shared here!
 
 - Username: admin
-- Password: Karnal.123
+- Password: -----
 
 ## Built using + Purpose
 
